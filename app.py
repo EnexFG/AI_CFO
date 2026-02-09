@@ -13,16 +13,12 @@ def load_financial_data(path: str) -> pd.DataFrame:
     return df
 
 
-def format_money(value: float) -> str:
-    if pd.isna(value):
-        return "-"
-    return f"{value:,.0f}"
-
-
-def format_pct(value: float) -> str:
-    if pd.isna(value):
-        return "-"
-    return f"{value:.2f}%"
+def style_income_statement_row(row: pd.Series) -> list[str]:
+    if row["Código"] == "vc61":
+        return [
+            "border-top: 2px solid #1f2937; font-weight: 700; background-color: #f5f7fb;"
+        ] * len(row)
+    return [""] * len(row)
 
 
 st.title("Estado de Resultados por Empresa")
@@ -34,8 +30,8 @@ data = load_financial_data("supercias.pkl")
 variables = ["vx50", "v69", "vc61"]
 labels = {
     "vx50": "Ingresos",
-    "v69": "Gastos",
-    "vc61": "Utilidad",
+    "v69": "(-) Gastos",
+    "vc61": "= Utilidad del ejercicio",
 }
 
 company_options = sorted(data["NOMBRE"].dropna().unique().tolist())
@@ -75,14 +71,28 @@ if selected_company:
             {
                 "Cuenta": labels.get(var, var.upper()),
                 "Código": var,
-                "2023": format_money(value_2023),
-                "2024": format_money(value_2024),
-                "Variación": format_money(var_abs),
-                "Variación %": format_pct(var_pct),
+                "2023": value_2023,
+                "2024": value_2024,
+                "Variación": var_abs,
+                "Variación %": var_pct,
             }
         )
 
     report_df = pd.DataFrame(report_rows)
-    st.dataframe(report_df, use_container_width=True, hide_index=True)
+    styled_report = (
+        report_df.style
+        .format(
+            {
+                "2023": "{:,.0f}",
+                "2024": "{:,.0f}",
+                "Variación": "{:,.0f}",
+                "Variación %": "{:.2f}%",
+            },
+            na_rep="-",
+        )
+        .apply(style_income_statement_row, axis=1)
+    )
+
+    st.table(styled_report.hide(axis="index"))
 else:
     st.info("Selecciona una empresa para visualizar su estado de resultados.")
