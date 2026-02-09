@@ -13,20 +13,6 @@ def load_financial_data(path: str) -> pd.DataFrame:
     return df
 
 
-@st.cache_data
-def load_format_variables(path: str) -> list[str]:
-    fmt = pd.read_excel(path)
-    first_col = fmt.columns[0]
-    variables = (
-        fmt[first_col]
-        .dropna()
-        .astype(str)
-        .str.strip()
-        .tolist()
-    )
-    return variables
-
-
 def format_money(value: float) -> str:
     if pd.isna(value):
         return "-"
@@ -43,13 +29,13 @@ st.title("Estado de Resultados por Empresa")
 st.caption("Datos de Supercias 2023-2024")
 
 data = load_financial_data("supercias.pkl")
-variables = load_format_variables("formato.xlsx")
 
-# Etiquetas simples (según el orden del archivo de formato).
-default_labels = ["Ingresos", "Gastos", "Utilidad"]
+# Variables definidas internamente (sin depender de Excel en runtime).
+variables = ["vx50", "v69", "vc61"]
 labels = {
-    code: default_labels[i] if i < len(default_labels) else code.upper()
-    for i, code in enumerate(variables)
+    "vx50": "Ingresos",
+    "v69": "Gastos",
+    "vc61": "Utilidad",
 }
 
 company_options = sorted(data["NOMBRE"].dropna().unique().tolist())
