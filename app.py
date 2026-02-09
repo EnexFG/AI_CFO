@@ -93,6 +93,6 @@ if selected_company:
         .apply(style_income_statement_row, axis=1)
     )
 
-    st.table(styled_report.hide(axis="index"))
+    st.dataframe(styled_report, use_container_width=True, hide_index=True)
 else:
     st.info("Selecciona una empresa para visualizar su estado de resultados.")
