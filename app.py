@@ -1,5 +1,6 @@
 import pandas as pd
 import streamlit as st
+import unicodedata
 
 
 st.set_page_config(page_title="Dashboard - Estado de Resultados", layout="wide")
@@ -19,6 +20,12 @@ def style_income_statement_row(row: pd.Series, total_rows: set[int], detail_rows
     if row.name in detail_rows:
         return ["color: #374151;"] * len(row)
     return [""] * len(row)
+
+
+def normalize_text(text: str) -> str:
+    normalized = unicodedata.normalize("NFKD", str(text))
+    ascii_text = normalized.encode("ascii", "ignore").decode("ascii")
+    return ascii_text.upper().strip()
 
 
 st.title("Estado de Resultados por Empresa")
@@ -51,12 +58,39 @@ statement_structure = [
 ]
 
 company_options = sorted(data["NOMBRE"].dropna().unique().tolist())
-selected_company = st.selectbox(
-    "Buscar y seleccionar empresa",
-    options=company_options,
-    index=None,
-    placeholder="Escribe el nombre de la empresa...",
+company_options_norm = [normalize_text(name) for name in company_options]
+
+search_query = st.text_input(
+    "Buscar empresa (inicio del nombre)",
+    placeholder="Ej: ROS",
 )
+
+selected_company = None
+query_norm = normalize_text(search_query)
+if query_norm:
+    filtered_companies = [
+        name for name, normalized_name in zip(company_options, company_options_norm) if normalized_name.startswith(query_norm)
+    ]
+
+    if filtered_companies:
+        max_results = 300
+        total_matches = len(filtered_companies)
+        filtered_companies = filtered_companies[:max_results]
+        if total_matches > max_results:
+            st.caption(f"Mostrando {max_results} de {total_matches} coincidencias. Escribe más letras para acotar.")
+        else:
+            st.caption(f"{total_matches} coincidencias.")
+
+        selected_company = st.selectbox(
+            "Seleccionar empresa",
+            options=filtered_companies,
+            index=None,
+            placeholder="Elige una empresa...",
+        )
+    else:
+        st.warning("No hay empresas que comiencen con ese texto.")
+else:
+    st.info("Escribe el inicio del nombre de la empresa para ver opciones.")
 
 if selected_company:
     company_df = data[data["NOMBRE"] == selected_company].copy()
