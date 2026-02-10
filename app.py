@@ -63,6 +63,15 @@ if selected_company:
     statement_columns = [item["column"] for item in statement_structure]
     available_columns = [col for col in statement_columns if col in company_df.columns]
     missing_columns = [col for col in statement_columns if col not in company_df.columns]
+    pct_income_rows = {
+        "INGRESOS",
+        "CONTRIBUCION_MARGINAL",
+        "GASTO_OPERACIONAL",
+        "UTILIDAD_OPERACIONAL",
+        "GASTOS_ADMINISTRATIVOS",
+        "EBITDA",
+        "RESULTADO_ANTES_IMPUESTOS",
+    }
 
     # Si hay múltiples registros por año/empresa, consolidamos por suma.
     annual_df = (
@@ -74,6 +83,7 @@ if selected_company:
     ruc = company_df["RUC"].dropna().astype(str).iloc[0] if not company_df["RUC"].dropna().empty else "-"
     st.subheader(selected_company)
     st.write(f"**RUC:** {ruc}")
+    ingresos_2024 = annual_df.loc[2024, "INGRESOS"] if "INGRESOS" in annual_df.columns else pd.NA
 
     report_rows = []
     total_rows = set()
@@ -85,9 +95,17 @@ if selected_company:
 
         var_abs = pd.NA
         var_pct = pd.NA
+        pct_ingresos = pd.NA
         if pd.notna(value_2023) and pd.notna(value_2024):
             var_abs = value_2024 - value_2023
             var_pct = (var_abs / value_2023 * 100) if value_2023 != 0 else pd.NA
+        if (
+            column in pct_income_rows
+            and pd.notna(value_2024)
+            and pd.notna(ingresos_2024)
+            and ingresos_2024 != 0
+        ):
+            pct_ingresos = (value_2024 / ingresos_2024) * 100
 
         if item["is_total"]:
             total_rows.add(idx)
@@ -100,6 +118,7 @@ if selected_company:
                 "Cuenta": display_label,
                 "2023": value_2023,
                 "2024": value_2024,
+                "% Ingresos": pct_ingresos,
                 "Variación": var_abs,
                 "Variación %": var_pct,
             }
@@ -115,6 +134,7 @@ if selected_company:
             {
                 "2023": "{:,.0f}",
                 "2024": "{:,.0f}",
+                "% Ingresos": "{:.2f}%",
                 "Variación": "{:,.0f}",
                 "Variación %": "{:.2f}%",
             },
