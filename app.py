@@ -73,19 +73,17 @@ if query_norm:
     ]
 
     if filtered_companies:
-        total_matches = len(filtered_companies)
-        if total_matches == 1:
-            selected_company = filtered_companies[0]
-            st.caption(f"Empresa seleccionada: {selected_company}")
-        else:
-            preview_limit = 15
-            preview = filtered_companies[:preview_limit]
-            st.caption(f"{total_matches} coincidencias por prefijo. Escribe más letras para seleccionar una sola empresa.")
-            st.caption("Sugerencias: " + " | ".join(preview))
+        selected_company = st.selectbox(
+            "Seleccionar empresa",
+            options=filtered_companies,
+            index=None,
+            placeholder="Elige una empresa...",
+        )
+        st.caption(f"{len(filtered_companies)} coincidencias por inicio.")
     else:
         st.warning("No hay empresas que comiencen con ese texto.")
 else:
-    st.info("Escribe el inicio del nombre de la empresa para ver opciones.")
+    st.info("Escribe el inicio del nombre de la empresa para ver opciones y luego selecciónala.")
 
 if selected_company:
     company_df = data[data["NOMBRE"] == selected_company].copy()
