@@ -13,9 +13,11 @@ def load_financial_data(path: str) -> pd.DataFrame:
     return df
 
 
-def style_income_statement_row(row: pd.Series, total_rows: set[int]) -> list[str]:
+def style_income_statement_row(row: pd.Series, total_rows: set[int], detail_rows: set[int]) -> list[str]:
     if row.name in total_rows:
         return ["border-top: 2px solid #1f2937; font-weight: 700; background-color: #f5f7fb;"] * len(row)
+    if row.name in detail_rows:
+        return ["color: #374151;"] * len(row)
     return [""] * len(row)
 
 
@@ -25,18 +27,27 @@ st.caption("Datos de Supercias 2023-2024")
 data = load_financial_data("supercias.pkl")
 
 statement_structure = [
-    {"column": "INGRESOS", "label": "INGRESOS", "sign": "", "is_total": False},
-    {"column": "COSTO_VENTAS", "label": "COSTO_VENTAS", "sign": "(-)", "is_total": False},
-    {"column": "COSTO_DIST_LOG", "label": "COSTO_DIST_LOG", "sign": "(-)", "is_total": False},
-    {"column": "CONTRIBUCION_MARGINAL", "label": "CONTRIBUCION_MARGINAL", "sign": "=", "is_total": True},
-    {"column": "GASTO_OPERACIONAL", "label": "GASTO_OPERACIONAL", "sign": "(-)", "is_total": False},
-    {"column": "UTILIDAD_OPERACIONAL", "label": "UTILIDAD_OPERACIONAL", "sign": "=", "is_total": True},
-    {"column": "GASTOS_ADMINISTRATIVOS", "label": "GASTOS_ADMINISTRATIVOS", "sign": "(-)", "is_total": False},
-    {"column": "EBITDA", "label": "EBITDA", "sign": "=", "is_total": True},
-    {"column": "DEPRECIACION", "label": "DEPRECIACION", "sign": "(+)", "is_total": False},
-    {"column": "AMORTIZACION", "label": "AMORTIZACION", "sign": "(+)", "is_total": False},
-    {"column": "COSTO_FINANCIERO", "label": "COSTO_FINANCIERO", "sign": "(-)", "is_total": False},
-    {"column": "RESULTADO_ANTES_IMPUESTOS", "label": "RESULTADO_ANTES_IMPUESTOS", "sign": "=", "is_total": True},
+    {"column": "INGRESOS", "label": "INGRESOS", "sign": "", "is_total": False, "is_detail": False},
+    {"column": "COSTO_VENTAS", "label": "COSTO_VENTAS", "sign": "(-)", "is_total": False, "is_detail": False},
+    {"column": "COSTO_DIST_LOG", "label": "COSTO_DIST_LOG", "sign": "(-)", "is_total": False, "is_detail": False},
+    {"column": "CONTRIBUCION_MARGINAL", "label": "CONTRIBUCION_MARGINAL", "sign": "=", "is_total": True, "is_detail": False},
+    {"column": "GASTO_OPERACIONAL", "label": "GASTO_OPERACIONAL", "sign": "(-)", "is_total": False, "is_detail": False},
+    {"column": "GASTO_DE_PERSONAL", "label": "GASTO_DE_PERSONAL", "sign": "->", "is_total": False, "is_detail": True},
+    {"column": "GASTO_ARRENDAMIENTO", "label": "GASTO_ARRENDAMIENTO", "sign": "->", "is_total": False, "is_detail": True},
+    {"column": "GASTO_PUBLICIDAD", "label": "GASTO_PUBLICIDAD", "sign": "->", "is_total": False, "is_detail": True},
+    {"column": "GASTO_SERVICIOS_BASICOS", "label": "GASTO_SERVICIOS_BASICOS", "sign": "->", "is_total": False, "is_detail": True},
+    {"column": "GASTO_GESTION", "label": "GASTO_GESTION", "sign": "->", "is_total": False, "is_detail": True},
+    {"column": "GASTO_MANTENIMIENTO", "label": "GASTO_MANTENIMIENTO", "sign": "->", "is_total": False, "is_detail": True},
+    {"column": "GASTO_SERVICIOS_PROFESIONALES", "label": "GASTO_SERVICIOS_PROFESIONALES", "sign": "->", "is_total": False, "is_detail": True},
+    {"column": "GASTO_SEGUROS", "label": "GASTO_SEGUROS", "sign": "->", "is_total": False, "is_detail": True},
+    {"column": "GASTO_OTROS", "label": "GASTO_OTROS", "sign": "->", "is_total": False, "is_detail": True},
+    {"column": "UTILIDAD_OPERACIONAL", "label": "UTILIDAD_OPERACIONAL", "sign": "=", "is_total": True, "is_detail": False},
+    {"column": "GASTOS_ADMINISTRATIVOS", "label": "GASTOS_ADMINISTRATIVOS", "sign": "(-)", "is_total": False, "is_detail": False},
+    {"column": "EBITDA", "label": "EBITDA", "sign": "=", "is_total": True, "is_detail": False},
+    {"column": "DEPRECIACION", "label": "DEPRECIACION", "sign": "(+)", "is_total": False, "is_detail": False},
+    {"column": "AMORTIZACION", "label": "AMORTIZACION", "sign": "(+)", "is_total": False, "is_detail": False},
+    {"column": "COSTO_FINANCIERO", "label": "COSTO_FINANCIERO", "sign": "(-)", "is_total": False, "is_detail": False},
+    {"column": "RESULTADO_ANTES_IMPUESTOS", "label": "RESULTADO_ANTES_IMPUESTOS", "sign": "=", "is_total": True, "is_detail": False},
 ]
 
 company_options = sorted(data["NOMBRE"].dropna().unique().tolist())
@@ -66,6 +77,7 @@ if selected_company:
 
     report_rows = []
     total_rows = set()
+    detail_rows = set()
     for idx, item in enumerate(statement_structure):
         column = item["column"]
         value_2023 = annual_df.loc[2023, column] if column in annual_df.columns else pd.NA
@@ -79,6 +91,8 @@ if selected_company:
 
         if item["is_total"]:
             total_rows.add(idx)
+        if item["is_detail"]:
+            detail_rows.add(idx)
 
         display_label = f"{item['sign']} {item['label']}".strip()
         report_rows.append(
@@ -106,7 +120,7 @@ if selected_company:
             },
             na_rep="-",
         )
-        .apply(lambda row: style_income_statement_row(row, total_rows), axis=1)
+        .apply(lambda row: style_income_statement_row(row, total_rows, detail_rows), axis=1)
     )
 
     st.dataframe(styled_report, use_container_width=True, hide_index=True)
