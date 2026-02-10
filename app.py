@@ -61,7 +61,7 @@ company_options = sorted(data["NOMBRE"].dropna().unique().tolist())
 company_options_norm = [normalize_text(name) for name in company_options]
 
 search_query = st.text_input(
-    "Buscar empresa (inicio del nombre)",
+    "Buscar y seleccionar empresa (inicio del nombre)",
     placeholder="Ej: ROS",
 )
 
@@ -73,20 +73,15 @@ if query_norm:
     ]
 
     if filtered_companies:
-        max_results = 300
         total_matches = len(filtered_companies)
-        filtered_companies = filtered_companies[:max_results]
-        if total_matches > max_results:
-            st.caption(f"Mostrando {max_results} de {total_matches} coincidencias. Escribe más letras para acotar.")
+        if total_matches == 1:
+            selected_company = filtered_companies[0]
+            st.caption(f"Empresa seleccionada: {selected_company}")
         else:
-            st.caption(f"{total_matches} coincidencias.")
-
-        selected_company = st.selectbox(
-            "Seleccionar empresa",
-            options=filtered_companies,
-            index=None,
-            placeholder="Elige una empresa...",
-        )
+            preview_limit = 15
+            preview = filtered_companies[:preview_limit]
+            st.caption(f"{total_matches} coincidencias por prefijo. Escribe más letras para seleccionar una sola empresa.")
+            st.caption("Sugerencias: " + " | ".join(preview))
     else:
         st.warning("No hay empresas que comiencen con ese texto.")
 else:
