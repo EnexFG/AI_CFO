@@ -13,11 +13,9 @@ def load_financial_data(path: str) -> pd.DataFrame:
     return df
 
 
-def style_income_statement_row(row: pd.Series) -> list[str]:
-    if row["Código"] == "vc61":
-        return [
-            "border-top: 2px solid #1f2937; font-weight: 700; background-color: #f5f7fb;"
-        ] * len(row)
+def style_income_statement_row(row: pd.Series, total_rows: set[int]) -> list[str]:
+    if row.name in total_rows:
+        return ["border-top: 2px solid #1f2937; font-weight: 700; background-color: #f5f7fb;"] * len(row)
     return [""] * len(row)
 
 
@@ -26,13 +24,20 @@ st.caption("Datos de Supercias 2023-2024")
 
 data = load_financial_data("supercias.pkl")
 
-# Variables definidas internamente (sin depender de Excel en runtime).
-variables = ["vx50", "v69", "vc61"]
-labels = {
-    "vx50": "Ingresos",
-    "v69": "(-) Gastos",
-    "vc61": "= Utilidad del ejercicio",
-}
+statement_structure = [
+    {"column": "INGRESOS", "label": "INGRESOS", "sign": "", "is_total": False},
+    {"column": "COSTO_VENTAS", "label": "COSTO_VENTAS", "sign": "(-)", "is_total": False},
+    {"column": "COSTO_DIST_LOG", "label": "COSTO_DIST_LOG", "sign": "(-)", "is_total": False},
+    {"column": "CONTRIBUCION_MARGINAL", "label": "CONTRIBUCION_MARGINAL", "sign": "=", "is_total": True},
+    {"column": "GASTO_OPERACIONAL", "label": "GASTO_OPERACIONAL", "sign": "(-)", "is_total": False},
+    {"column": "UTILIDAD_OPERACIONAL", "label": "UTILIDAD_OPERACIONAL", "sign": "=", "is_total": True},
+    {"column": "GASTOS_ADMINISTRATIVOS", "label": "GASTOS_ADMINISTRATIVOS", "sign": "(-)", "is_total": False},
+    {"column": "EBITDA", "label": "EBITDA", "sign": "=", "is_total": True},
+    {"column": "DEPRECIACION", "label": "DEPRECIACION", "sign": "(+)", "is_total": False},
+    {"column": "AMORTIZACION", "label": "AMORTIZACION", "sign": "(+)", "is_total": False},
+    {"column": "COSTO_FINANCIERO", "label": "COSTO_FINANCIERO", "sign": "(-)", "is_total": False},
+    {"column": "RESULTADO_ANTES_IMPUESTOS", "label": "RESULTADO_ANTES_IMPUESTOS", "sign": "=", "is_total": True},
+]
 
 company_options = sorted(data["NOMBRE"].dropna().unique().tolist())
 selected_company = st.selectbox(
@@ -44,10 +49,13 @@ selected_company = st.selectbox(
 
 if selected_company:
     company_df = data[data["NOMBRE"] == selected_company].copy()
+    statement_columns = [item["column"] for item in statement_structure]
+    available_columns = [col for col in statement_columns if col in company_df.columns]
+    missing_columns = [col for col in statement_columns if col not in company_df.columns]
 
     # Si hay múltiples registros por año/empresa, consolidamos por suma.
     annual_df = (
-        company_df.groupby("AÑO", dropna=False)[variables]
+        company_df.groupby("AÑO", dropna=False)[available_columns]
         .sum(numeric_only=True)
         .reindex([2023, 2024])
     )
@@ -57,9 +65,11 @@ if selected_company:
     st.write(f"**RUC:** {ruc}")
 
     report_rows = []
-    for var in variables:
-        value_2023 = annual_df.loc[2023, var] if 2023 in annual_df.index else pd.NA
-        value_2024 = annual_df.loc[2024, var] if 2024 in annual_df.index else pd.NA
+    total_rows = set()
+    for idx, item in enumerate(statement_structure):
+        column = item["column"]
+        value_2023 = annual_df.loc[2023, column] if column in annual_df.columns else pd.NA
+        value_2024 = annual_df.loc[2024, column] if column in annual_df.columns else pd.NA
 
         var_abs = pd.NA
         var_pct = pd.NA
@@ -67,10 +77,13 @@ if selected_company:
             var_abs = value_2024 - value_2023
             var_pct = (var_abs / value_2023 * 100) if value_2023 != 0 else pd.NA
 
+        if item["is_total"]:
+            total_rows.add(idx)
+
+        display_label = f"{item['sign']} {item['label']}".strip()
         report_rows.append(
             {
-                "Cuenta": labels.get(var, var.upper()),
-                "Código": var,
+                "Cuenta": display_label,
                 "2023": value_2023,
                 "2024": value_2024,
                 "Variación": var_abs,
@@ -79,6 +92,9 @@ if selected_company:
         )
 
     report_df = pd.DataFrame(report_rows)
+    if missing_columns:
+        st.warning(f"Columnas no encontradas en el dataset: {', '.join(missing_columns)}")
+
     styled_report = (
         report_df.style
         .format(
@@ -90,7 +106,7 @@ if selected_company:
             },
             na_rep="-",
         )
-        .apply(style_income_statement_row, axis=1)
+        .apply(lambda row: style_income_statement_row(row, total_rows), axis=1)
     )
 
     st.dataframe(styled_report, use_container_width=True, hide_index=True)
