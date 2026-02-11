@@ -85,7 +85,7 @@ with logo_col:
         logo_base64 = base64.b64encode(logo_path.read_bytes()).decode("utf-8")
         st.markdown(
             f"""
-            <div style="margin-top: -32px;">
+            <div style="margin-top: -42px;">
                 <img src="data:image/png;base64,{logo_base64}" style="width: 100%; height: auto; display: block;" />
             </div>
             """,
