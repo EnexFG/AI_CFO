@@ -5,6 +5,57 @@ import streamlit as st
 st.set_page_config(page_title="Dashboard - Estado de Resultados", layout="wide")
 
 
+def get_basic_auth_credentials() -> tuple[str, str]:
+    username = "admin"
+    password = "admin123"
+
+    if "basic_auth" in st.secrets:
+        username = st.secrets["basic_auth"].get("username", username)
+        password = st.secrets["basic_auth"].get("password", password)
+
+    username = st.secrets.get("BASIC_AUTH_USERNAME", username)
+    password = st.secrets.get("BASIC_AUTH_PASSWORD", password)
+    return str(username), str(password)
+
+
+def init_auth_state() -> None:
+    if "authenticated" not in st.session_state:
+        st.session_state["authenticated"] = False
+    if "auth_user" not in st.session_state:
+        st.session_state["auth_user"] = ""
+
+
+def render_login_gate() -> None:
+    valid_user, valid_password = get_basic_auth_credentials()
+    init_auth_state()
+
+    if st.session_state["authenticated"]:
+        with st.sidebar:
+            st.caption(f"Sesión: {st.session_state['auth_user']}")
+            if st.button("Cerrar sesión"):
+                st.session_state["authenticated"] = False
+                st.session_state["auth_user"] = ""
+                st.rerun()
+        return
+
+    st.title("Acceso al Dashboard")
+    st.caption("Ingresa tus credenciales para continuar.")
+    with st.form("login_form", clear_on_submit=False):
+        user_input = st.text_input("Usuario")
+        password_input = st.text_input("Contraseña", type="password")
+        submitted = st.form_submit_button("Ingresar")
+
+    if submitted:
+        if user_input == valid_user and password_input == valid_password:
+            st.session_state["authenticated"] = True
+            st.session_state["auth_user"] = user_input
+            st.rerun()
+        else:
+            st.error("Credenciales inválidas.")
+
+    st.stop()
+
+
 @st.cache_data
 def load_financial_data(path: str) -> pd.DataFrame:
     df = pd.read_pickle(path).copy()
@@ -21,6 +72,7 @@ def style_income_statement_row(row: pd.Series, total_rows: set[int], detail_rows
     return [""] * len(row)
 
 
+render_login_gate()
 st.title("Estado de Resultados por Empresa")
 st.caption("Datos de Supercias 2023-2024")
 
