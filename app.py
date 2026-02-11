@@ -1,8 +1,9 @@
 import pandas as pd
 import streamlit as st
+from pathlib import Path
 
 
-st.set_page_config(page_title="Dashboard - Estado de Resultados", layout="wide")
+st.set_page_config(page_title="Análisis de Pérdidas y Ganancias", layout="wide")
 
 
 def get_basic_auth_credentials() -> tuple[str, str]:
@@ -73,8 +74,14 @@ def style_income_statement_row(row: pd.Series, total_rows: set[int], detail_rows
 
 
 render_login_gate()
-st.title("Análisis de Pérdidas y Ganancias")
-st.caption("Datos de Supercias 2021-2024")
+header_col, logo_col = st.columns([5.5, 1.5], vertical_alignment="top")
+with header_col:
+    st.title("Análisis de Pérdidas y Ganancias")
+    st.caption("Datos de Supercias 2021-2024")
+with logo_col:
+    logo_path = Path("Logo Andersen.png")
+    if logo_path.exists():
+        st.image(str(logo_path), use_container_width=True)
 
 data = load_financial_data("supercias.pkl")
 
