@@ -81,7 +81,19 @@ with header_col:
 with logo_col:
     logo_path = Path("Logo Andersen.png")
     if logo_path.exists():
+        st.markdown(
+            """
+            <style>
+            .logo-top-right img {
+                margin-top: -18px;
+            }
+            </style>
+            <div class="logo-top-right">
+            """,
+            unsafe_allow_html=True,
+        )
         st.image(str(logo_path), use_container_width=True)
+        st.markdown("</div>", unsafe_allow_html=True)
 
 data = load_financial_data("supercias.pkl")
 
