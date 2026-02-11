@@ -74,7 +74,7 @@ def style_income_statement_row(row: pd.Series, total_rows: set[int], detail_rows
 
 render_login_gate()
 st.title("Análisis de Pérdidas y Ganancias")
-st.caption("Datos de Supercias 2022-2024")
+st.caption("Datos de Supercias 2021-2024")
 
 data = load_financial_data("supercias.pkl")
 
@@ -129,7 +129,7 @@ if selected_company:
     annual_df = (
         company_df.groupby("AÑO", dropna=False)[available_columns]
         .sum(numeric_only=True)
-        .reindex([2022, 2023, 2024])
+        .reindex([2021, 2022, 2023, 2024])
     )
 
     ruc = company_df["RUC"].dropna().astype(str).iloc[0] if not company_df["RUC"].dropna().empty else "-"
@@ -142,6 +142,7 @@ if selected_company:
     detail_rows = set()
     for idx, item in enumerate(statement_structure):
         column = item["column"]
+        value_2021 = annual_df.loc[2021, column] if column in annual_df.columns else pd.NA
         value_2022 = annual_df.loc[2022, column] if column in annual_df.columns else pd.NA
         value_2023 = annual_df.loc[2023, column] if column in annual_df.columns else pd.NA
         value_2024 = annual_df.loc[2024, column] if column in annual_df.columns else pd.NA
@@ -169,11 +170,12 @@ if selected_company:
         report_rows.append(
             {
                 "Cuenta": display_label,
+                "2021": value_2021,
                 "2022": value_2022,
                 "2023": value_2023,
                 "2024": value_2024,
                 "% Ingresos": pct_ingresos,
-                "Variación": var_abs,
+                "Variación 2025/2024": var_abs,
                 "Variación %": var_pct,
             }
         )
@@ -186,11 +188,12 @@ if selected_company:
         report_df.style
         .format(
             {
+                "2021": "{:,.0f}",
                 "2022": "{:,.0f}",
                 "2023": "{:,.0f}",
                 "2024": "{:,.0f}",
                 "% Ingresos": "{:.2f}%",
-                "Variación": "{:,.0f}",
+                "Variación 2025/2024": "{:,.0f}",
                 "Variación %": "{:.2f}%",
             },
             na_rep="-",
