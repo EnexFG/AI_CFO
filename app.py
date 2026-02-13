@@ -265,6 +265,15 @@ if selected_company:
         balance_rows = []
         balance_total_rows = set()
         balance_detail_rows = set()
+        vertical_parent = {
+            "ACTIVO": "ACTIVO",
+            "ACTIVO CORRIENTE": "ACTIVO",
+            "ACTIVO NO CORRIENTE": "ACTIVO",
+            "PASIVO": "PASIVO",
+            "PASIVO CORRIENTE": "PASIVO",
+            "PASIVO NO CORRIENTE": "PASIVO",
+            "PATRIMONIO": "PATRIMONIO",
+        }
         for idx, item in enumerate(balance_structure):
             col = item["column"]
             value_2023 = annual_balance_df.loc[2023, col] if col in annual_balance_df.columns else pd.NA
@@ -272,9 +281,15 @@ if selected_company:
 
             var_abs = pd.NA
             var_pct = pd.NA
+            vertical_pct = pd.NA
             if pd.notna(value_2023) and pd.notna(value_2024):
                 var_abs = value_2024 - value_2023
                 var_pct = (var_abs / value_2023 * 100) if value_2023 != 0 else pd.NA
+            parent_col = vertical_parent.get(col)
+            if parent_col and parent_col in annual_balance_df.columns and pd.notna(value_2024):
+                parent_value_2024 = annual_balance_df.loc[2024, parent_col]
+                if pd.notna(parent_value_2024) and parent_value_2024 != 0:
+                    vertical_pct = (value_2024 / parent_value_2024) * 100
 
             if item["is_total"]:
                 balance_total_rows.add(idx)
@@ -289,7 +304,8 @@ if selected_company:
                     "2023": value_2023,
                     "2024": value_2024,
                     "Variación 2024/2023": var_abs,
-                    "Variación %": var_pct,
+                    "Comparativo Horizontal": var_pct,
+                    "Comparativo Vertical": vertical_pct,
                 }
             )
 
@@ -304,7 +320,8 @@ if selected_company:
                     "2023": "{:,.0f}",
                     "2024": "{:,.0f}",
                     "Variación 2024/2023": "{:,.0f}",
-                    "Variación %": "{:.2f}%",
+                    "Comparativo Horizontal": "{:.2f}%",
+                    "Comparativo Vertical": "{:.2f}%",
                 },
                 na_rep="-",
             )
