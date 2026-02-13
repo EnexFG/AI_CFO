@@ -92,10 +92,21 @@ def style_income_statement_row(row: pd.Series, total_rows: set[int], detail_rows
 def style_hierarchy_label(row: pd.Series, level_map: dict[int, int]) -> list[str]:
     level = level_map.get(row.name, 0)
     if level == 2:
-        return ["padding-left: 2rem; color: #4b5563;"]
+        return ["padding-left: 2.4rem; color: #4b5563; font-weight: 500;"]
     if level == 1:
-        return ["padding-left: 1rem;"]
+        return ["padding-left: 1.2rem; font-weight: 600;"]
     return [""]
+
+
+def style_balance_row(row: pd.Series, total_rows: set[int], level_map: dict[int, int]) -> list[str]:
+    if row.name in total_rows:
+        return ["border-top: 2px solid #1f2937; font-weight: 700; background-color: #eef2ff;"] * len(row)
+    level = level_map.get(row.name, 0)
+    if level == 1:
+        return ["background-color: #f8fafc;"] * len(row)
+    if level == 2:
+        return ["background-color: #fcfcfd; color: #4b5563;"] * len(row)
+    return [""] * len(row)
 
 
 render_login_gate()
@@ -323,7 +334,13 @@ if selected_company:
                 balance_detail_rows.add(idx)
             balance_level_map[idx] = item.get("level", 0)
 
-            display_label = f"{item['sign']} {item['label']}".strip()
+            level = item.get("level", 0)
+            if level == 0:
+                display_label = f"= {item['label']}"
+            elif level == 1:
+                display_label = f"|- {item['label']}"
+            else:
+                display_label = f"|--- {item['label']}"
 
             balance_rows.append(
                 {
@@ -352,7 +369,7 @@ if selected_company:
                 },
                 na_rep="-",
             )
-            .apply(lambda row: style_income_statement_row(row, balance_total_rows, balance_detail_rows), axis=1)
+            .apply(lambda row: style_balance_row(row, balance_total_rows, balance_level_map), axis=1)
             .apply(lambda row: style_hierarchy_label(row, balance_level_map), axis=1, subset=["Cuenta"])
         )
 
