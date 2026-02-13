@@ -66,6 +66,21 @@ def load_financial_data(path: str) -> pd.DataFrame:
     return df
 
 
+@st.cache_data
+def load_balance_data(path_2023: str, path_2024: str) -> pd.DataFrame:
+    df_2023 = pd.read_pickle(path_2023).copy()
+    df_2024 = pd.read_pickle(path_2024).copy()
+
+    df_2023["AÑO"] = 2023
+    df_2024["AÑO"] = 2024
+
+    for df in [df_2023, df_2024]:
+        df["NOMBRE"] = df["NOMBRE"].astype(str).str.strip()
+        df["RUC"] = df["RUC"].astype(str).str.strip()
+
+    return pd.concat([df_2023, df_2024], ignore_index=True)
+
+
 def style_income_statement_row(row: pd.Series, total_rows: set[int], detail_rows: set[int]) -> list[str]:
     if row.name in total_rows:
         return ["border-top: 2px solid #1f2937; font-weight: 700; background-color: #f5f7fb;"] * len(row)
@@ -93,6 +108,7 @@ with logo_col:
         )
 
 data = load_financial_data("supercias_resultados.pkl")
+balance_data = load_balance_data("supercias_balances_2023.pkl", "supercias_balances_2024.pkl")
 
 statement_structure = [
     {"column": "INGRESOS", "label": "INGRESOS", "sign": "", "is_total": False, "is_detail": False},
@@ -152,6 +168,7 @@ if selected_company:
     st.subheader(selected_company)
     st.write(f"**RUC:** {ruc}")
     ingresos_2024 = annual_df.loc[2024, "INGRESOS"] if "INGRESOS" in annual_df.columns else pd.NA
+    st.markdown("#### Estado de Resultados")
 
     report_rows = []
     total_rows = set()
@@ -218,5 +235,63 @@ if selected_company:
     )
 
     st.dataframe(styled_report, use_container_width=True, hide_index=True)
+
+    st.markdown("#### Análisis de Balance General")
+    balance_columns = ["ACTIVO", "PASIVO", "PATRIMONIO"]
+    balance_company_df = balance_data[balance_data["RUC"] == str(ruc)].copy()
+    if balance_company_df.empty:
+        balance_company_df = balance_data[balance_data["NOMBRE"] == selected_company].copy()
+
+    if balance_company_df.empty:
+        st.warning("No se encontró información de balance general para esta empresa.")
+    else:
+        available_balance_cols = [col for col in balance_columns if col in balance_company_df.columns]
+        missing_balance_cols = [col for col in balance_columns if col not in balance_company_df.columns]
+        annual_balance_df = (
+            balance_company_df.groupby("AÑO", dropna=False)[available_balance_cols]
+            .sum(numeric_only=True)
+            .reindex([2023, 2024])
+        )
+
+        balance_rows = []
+        for col in balance_columns:
+            value_2023 = annual_balance_df.loc[2023, col] if col in annual_balance_df.columns else pd.NA
+            value_2024 = annual_balance_df.loc[2024, col] if col in annual_balance_df.columns else pd.NA
+
+            var_abs = pd.NA
+            var_pct = pd.NA
+            if pd.notna(value_2023) and pd.notna(value_2024):
+                var_abs = value_2024 - value_2023
+                var_pct = (var_abs / value_2023 * 100) if value_2023 != 0 else pd.NA
+
+            balance_rows.append(
+                {
+                    "Cuenta": col,
+                    "2023": value_2023,
+                    "2024": value_2024,
+                    "Variación 2024/2023": var_abs,
+                    "Variación %": var_pct,
+                }
+            )
+
+        balance_df = pd.DataFrame(balance_rows)
+        if missing_balance_cols:
+            st.warning(f"Columnas de balance no encontradas: {', '.join(missing_balance_cols)}")
+
+        styled_balance = (
+            balance_df.style
+            .format(
+                {
+                    "2023": "{:,.0f}",
+                    "2024": "{:,.0f}",
+                    "Variación 2024/2023": "{:,.0f}",
+                    "Variación %": "{:.2f}%",
+                },
+                na_rep="-",
+            )
+            .apply(lambda row: style_income_statement_row(row, set(), set()), axis=1)
+        )
+
+        st.dataframe(styled_balance, use_container_width=True, hide_index=True)
 else:
     st.info("Selecciona una empresa para visualizar su estado de resultados.")
