@@ -92,7 +92,7 @@ with logo_col:
             unsafe_allow_html=True,
         )
 
-data = load_financial_data("supercias.pkl")
+data = load_financial_data("supercias_resultados.pkl")
 
 statement_structure = [
     {"column": "INGRESOS", "label": "INGRESOS", "sign": "", "is_total": False, "is_detail": False},
