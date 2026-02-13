@@ -89,6 +89,15 @@ def style_income_statement_row(row: pd.Series, total_rows: set[int], detail_rows
     return [""] * len(row)
 
 
+def style_hierarchy_label(row: pd.Series, level_map: dict[int, int]) -> list[str]:
+    level = level_map.get(row.name, 0)
+    if level == 2:
+        return ["padding-left: 2rem; color: #4b5563;"]
+    if level == 1:
+        return ["padding-left: 1rem;"]
+    return [""]
+
+
 render_login_gate()
 header_col, logo_col = st.columns([5.5, 1.5], vertical_alignment="top")
 with header_col:
@@ -238,21 +247,21 @@ if selected_company:
 
     st.markdown("#### Análisis de Balance General")
     balance_structure = [
-        {"column": "ACTIVO", "label": "ACTIVO", "sign": "=", "is_total": True, "is_detail": False},
-        {"column": "ACTIVO CORRIENTE", "label": "ACTIVO CORRIENTE", "sign": "->", "is_total": False, "is_detail": True},
-        {"column": "DISPONIBLE", "label": "DISPONIBLE", "sign": "->", "is_total": False, "is_detail": True},
-        {"column": "INVERSIONES", "label": "INVERSIONES", "sign": "->", "is_total": False, "is_detail": True},
-        {"column": "CUENTAS POR COBRAR CLIENTES", "label": "CUENTAS POR COBRAR CLIENTES", "sign": "->", "is_total": False, "is_detail": True},
-        {"column": "CUENTAS POR COBRAR RELACIONADAS", "label": "CUENTAS POR COBRAR RELACIONADAS", "sign": "->", "is_total": False, "is_detail": True},
-        {"column": "PROVISIÓN INCOBRABLE Y DETERIORO", "label": "PROVISIÓN INCOBRABLE Y DETERIORO", "sign": "->", "is_total": False, "is_detail": True},
-        {"column": "INVENTARIO", "label": "INVENTARIO", "sign": "->", "is_total": False, "is_detail": True},
-        {"column": "CRÉDITO TRIBUTARIO", "label": "CRÉDITO TRIBUTARIO", "sign": "->", "is_total": False, "is_detail": True},
-        {"column": "OTROS ACTIVOS CORRIENTES", "label": "OTROS ACTIVOS CORRIENTES", "sign": "->", "is_total": False, "is_detail": True},
-        {"column": "ACTIVO NO CORRIENTE", "label": "ACTIVO NO CORRIENTE", "sign": "->", "is_total": False, "is_detail": True},
-        {"column": "PASIVO", "label": "PASIVO", "sign": "=", "is_total": True, "is_detail": False},
-        {"column": "PASIVO CORRIENTE", "label": "PASIVO CORRIENTE", "sign": "->", "is_total": False, "is_detail": True},
-        {"column": "PASIVO NO CORRIENTE", "label": "PASIVO NO CORRIENTE", "sign": "->", "is_total": False, "is_detail": True},
-        {"column": "PATRIMONIO", "label": "PATRIMONIO", "sign": "=", "is_total": True, "is_detail": False},
+        {"column": "ACTIVO", "label": "ACTIVO", "sign": "=", "level": 0, "is_total": True, "is_detail": False},
+        {"column": "ACTIVO CORRIENTE", "label": "ACTIVO CORRIENTE", "sign": "->", "level": 1, "is_total": False, "is_detail": True},
+        {"column": "DISPONIBLE", "label": "DISPONIBLE", "sign": "-->", "level": 2, "is_total": False, "is_detail": True},
+        {"column": "INVERSIONES", "label": "INVERSIONES", "sign": "-->", "level": 2, "is_total": False, "is_detail": True},
+        {"column": "CUENTAS POR COBRAR CLIENTES", "label": "CUENTAS POR COBRAR CLIENTES", "sign": "-->", "level": 2, "is_total": False, "is_detail": True},
+        {"column": "CUENTAS POR COBRAR RELACIONADAS", "label": "CUENTAS POR COBRAR RELACIONADAS", "sign": "-->", "level": 2, "is_total": False, "is_detail": True},
+        {"column": "PROVISIÓN INCOBRABLE Y DETERIORO", "label": "PROVISIÓN INCOBRABLE Y DETERIORO", "sign": "-->", "level": 2, "is_total": False, "is_detail": True},
+        {"column": "INVENTARIO", "label": "INVENTARIO", "sign": "-->", "level": 2, "is_total": False, "is_detail": True},
+        {"column": "CRÉDITO TRIBUTARIO", "label": "CRÉDITO TRIBUTARIO", "sign": "-->", "level": 2, "is_total": False, "is_detail": True},
+        {"column": "OTROS ACTIVOS CORRIENTES", "label": "OTROS ACTIVOS CORRIENTES", "sign": "-->", "level": 2, "is_total": False, "is_detail": True},
+        {"column": "ACTIVO NO CORRIENTE", "label": "ACTIVO NO CORRIENTE", "sign": "->", "level": 1, "is_total": False, "is_detail": True},
+        {"column": "PASIVO", "label": "PASIVO", "sign": "=", "level": 0, "is_total": True, "is_detail": False},
+        {"column": "PASIVO CORRIENTE", "label": "PASIVO CORRIENTE", "sign": "->", "level": 1, "is_total": False, "is_detail": True},
+        {"column": "PASIVO NO CORRIENTE", "label": "PASIVO NO CORRIENTE", "sign": "->", "level": 1, "is_total": False, "is_detail": True},
+        {"column": "PATRIMONIO", "label": "PATRIMONIO", "sign": "=", "level": 0, "is_total": True, "is_detail": False},
     ]
     balance_columns = [item["column"] for item in balance_structure]
     balance_company_df = balance_data[balance_data["RUC"] == str(ruc)].copy()
@@ -273,6 +282,7 @@ if selected_company:
         balance_rows = []
         balance_total_rows = set()
         balance_detail_rows = set()
+        balance_level_map = {}
         vertical_parent = {
             "ACTIVO": "ACTIVO",
             "ACTIVO CORRIENTE": "ACTIVO",
@@ -311,6 +321,7 @@ if selected_company:
                 balance_total_rows.add(idx)
             if item["is_detail"]:
                 balance_detail_rows.add(idx)
+            balance_level_map[idx] = item.get("level", 0)
 
             display_label = f"{item['sign']} {item['label']}".strip()
 
@@ -342,6 +353,7 @@ if selected_company:
                 na_rep="-",
             )
             .apply(lambda row: style_income_statement_row(row, balance_total_rows, balance_detail_rows), axis=1)
+            .apply(lambda row: style_hierarchy_label(row, balance_level_map), axis=1, subset=["Cuenta"])
         )
 
         st.dataframe(styled_balance, use_container_width=True, hide_index=True)
