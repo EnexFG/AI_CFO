@@ -237,7 +237,16 @@ if selected_company:
     st.dataframe(styled_report, use_container_width=True, hide_index=True)
 
     st.markdown("#### Análisis de Balance General")
-    balance_columns = ["ACTIVO", "PASIVO", "PATRIMONIO"]
+    balance_structure = [
+        {"column": "ACTIVO", "label": "ACTIVO", "sign": "=", "is_total": True, "is_detail": False},
+        {"column": "ACTIVO CORRIENTE", "label": "ACTIVO CORRIENTE", "sign": "->", "is_total": False, "is_detail": True},
+        {"column": "ACTIVO NO CORRIENTE", "label": "ACTIVO NO CORRIENTE", "sign": "->", "is_total": False, "is_detail": True},
+        {"column": "PASIVO", "label": "PASIVO", "sign": "=", "is_total": True, "is_detail": False},
+        {"column": "PASIVO CORRIENTE", "label": "PASIVO CORRIENTE", "sign": "->", "is_total": False, "is_detail": True},
+        {"column": "PASIVO NO CORRIENTE", "label": "PASIVO NO CORRIENTE", "sign": "->", "is_total": False, "is_detail": True},
+        {"column": "PATRIMONIO", "label": "PATRIMONIO", "sign": "=", "is_total": True, "is_detail": False},
+    ]
+    balance_columns = [item["column"] for item in balance_structure]
     balance_company_df = balance_data[balance_data["RUC"] == str(ruc)].copy()
     if balance_company_df.empty:
         balance_company_df = balance_data[balance_data["NOMBRE"] == selected_company].copy()
@@ -254,7 +263,10 @@ if selected_company:
         )
 
         balance_rows = []
-        for col in balance_columns:
+        balance_total_rows = set()
+        balance_detail_rows = set()
+        for idx, item in enumerate(balance_structure):
+            col = item["column"]
             value_2023 = annual_balance_df.loc[2023, col] if col in annual_balance_df.columns else pd.NA
             value_2024 = annual_balance_df.loc[2024, col] if col in annual_balance_df.columns else pd.NA
 
@@ -264,9 +276,16 @@ if selected_company:
                 var_abs = value_2024 - value_2023
                 var_pct = (var_abs / value_2023 * 100) if value_2023 != 0 else pd.NA
 
+            if item["is_total"]:
+                balance_total_rows.add(idx)
+            if item["is_detail"]:
+                balance_detail_rows.add(idx)
+
+            display_label = f"{item['sign']} {item['label']}".strip()
+
             balance_rows.append(
                 {
-                    "Cuenta": col,
+                    "Cuenta": display_label,
                     "2023": value_2023,
                     "2024": value_2024,
                     "Variación 2024/2023": var_abs,
@@ -289,7 +308,7 @@ if selected_company:
                 },
                 na_rep="-",
             )
-            .apply(lambda row: style_income_statement_row(row, set(), set()), axis=1)
+            .apply(lambda row: style_income_statement_row(row, balance_total_rows, balance_detail_rows), axis=1)
         )
 
         st.dataframe(styled_balance, use_container_width=True, hide_index=True)
