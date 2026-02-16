@@ -288,6 +288,12 @@ if selected_company:
         {"column": "PROVISIONES", "label": "PROVISIONES", "sign": "-->", "level": 2, "is_total": False, "is_detail": True},
         {"column": "OTROS PASIVOS CORRIENTES", "label": "OTROS PASIVOS CORRIENTES", "sign": "-->", "level": 2, "is_total": False, "is_detail": True},
         {"column": "PASIVO NO CORRIENTE", "label": "PASIVO NO CORRIENTE", "sign": "->", "level": 1, "is_total": False, "is_detail": True},
+        {"column": "OBLIGACIONES FINANCIERAS LARGO PLAZO", "label": "OBLIGACIONES FINANCIERAS LARGO PLAZO", "sign": "-->", "level": 2, "is_total": False, "is_detail": True},
+        {"column": "ARRENDAMIENTO LARGO PLAZO", "label": "ARRENDAMIENTO LARGO PLAZO", "sign": "-->", "level": 2, "is_total": False, "is_detail": True},
+        {"column": "PASIVO DIFERIDO", "label": "PASIVO DIFERIDO", "sign": "-->", "level": 2, "is_total": False, "is_detail": True},
+        {"column": "BENEFICIOS EMPLEADOS LARGO PLAZO", "label": "BENEFICIOS EMPLEADOS LARGO PLAZO", "sign": "-->", "level": 2, "is_total": False, "is_detail": True},
+        {"column": "OTRAS CUENTAS POR PAGAR LARGO PLAZO", "label": "OTRAS CUENTAS POR PAGAR LARGO PLAZO", "sign": "-->", "level": 2, "is_total": False, "is_detail": True},
+        {"column": "OTROS PASIVOS NO CORRIENTES", "label": "OTROS PASIVOS NO CORRIENTES", "sign": "-->", "level": 2, "is_total": False, "is_detail": True},
         {"column": "PATRIMONIO", "label": "PATRIMONIO", "sign": "=", "level": 0, "is_total": True, "is_detail": False},
     ]
     balance_columns = [item["column"] for item in balance_structure]
@@ -341,6 +347,12 @@ if selected_company:
             "PROVISIONES": "PASIVO",
             "OTROS PASIVOS CORRIENTES": "PASIVO",
             "PASIVO NO CORRIENTE": "PASIVO",
+            "OBLIGACIONES FINANCIERAS LARGO PLAZO": "PASIVO",
+            "ARRENDAMIENTO LARGO PLAZO": "PASIVO",
+            "PASIVO DIFERIDO": "PASIVO",
+            "BENEFICIOS EMPLEADOS LARGO PLAZO": "PASIVO",
+            "OTRAS CUENTAS POR PAGAR LARGO PLAZO": "PASIVO",
+            "OTROS PASIVOS NO CORRIENTES": "PASIVO",
             "PATRIMONIO": "PATRIMONIO",
         }
         for idx, item in enumerate(balance_structure):
