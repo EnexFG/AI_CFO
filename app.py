@@ -111,12 +111,27 @@ def style_balance_row(row: pd.Series, total_rows: set[int], level_map: dict[int,
     return [""] * len(row)
 
 
+def escape_excel_formula_value(value):
+    if isinstance(value, str) and value and value[0] in ("=", "+", "-", "@"):
+        return "'" + value
+    return value
+
+
+def sanitize_for_excel(df: pd.DataFrame) -> pd.DataFrame:
+    safe_df = df.copy()
+    text_cols = safe_df.select_dtypes(include=["object", "string"]).columns
+    for col in text_cols:
+        safe_df[col] = safe_df[col].map(escape_excel_formula_value)
+    return safe_df
+
+
 def to_excel_bytes(df: pd.DataFrame, sheet_name: str = "Sheet1") -> bytes:
+    safe_df = sanitize_for_excel(df)
     for engine in ("xlsxwriter", "openpyxl"):
         try:
             buffer = io.BytesIO()
             with pd.ExcelWriter(buffer, engine=engine) as writer:
-                df.to_excel(writer, index=False, sheet_name=sheet_name)
+                safe_df.to_excel(writer, index=False, sheet_name=sheet_name)
             buffer.seek(0)
             return buffer.getvalue()
         except Exception:
