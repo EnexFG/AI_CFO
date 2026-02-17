@@ -295,6 +295,13 @@ if selected_company:
         {"column": "OTRAS CUENTAS POR PAGAR LARGO PLAZO", "label": "OTRAS CUENTAS POR PAGAR LARGO PLAZO", "sign": "-->", "level": 2, "is_total": False, "is_detail": True},
         {"column": "OTROS PASIVOS NO CORRIENTES", "label": "OTROS PASIVOS NO CORRIENTES", "sign": "-->", "level": 2, "is_total": False, "is_detail": True},
         {"column": "PATRIMONIO", "label": "PATRIMONIO", "sign": "=", "level": 0, "is_total": True, "is_detail": False},
+        {"column": "CAPITAL", "label": "CAPITAL", "sign": "-->", "level": 2, "is_total": False, "is_detail": True},
+        {"column": "APORTES PARA FUTURA CAPITALIZACIÓN", "label": "APORTES PARA FUTURA CAPITALIZACIÓN", "sign": "-->", "level": 2, "is_total": False, "is_detail": True},
+        {"column": "PRIMA POR EMISIÓN PRIMARIA DE ACCIONES", "label": "PRIMA POR EMISIÓN PRIMARIA DE ACCIONES", "sign": "-->", "level": 2, "is_total": False, "is_detail": True},
+        {"column": "RESERVAS", "label": "RESERVAS", "sign": "-->", "level": 2, "is_total": False, "is_detail": True},
+        {"column": "OTROS RESULTADOS INTEGRALES", "label": "OTROS RESULTADOS INTEGRALES", "sign": "-->", "level": 2, "is_total": False, "is_detail": True},
+        {"column": "RESULTADOS ACUMULADOS", "label": "RESULTADOS ACUMULADOS", "sign": "-->", "level": 2, "is_total": False, "is_detail": True},
+        {"column": "RESULTADOS DEL EJERCICIO", "label": "RESULTADOS DEL EJERCICIO", "sign": "-->", "level": 2, "is_total": False, "is_detail": True},
     ]
     balance_columns = [item["column"] for item in balance_structure]
     balance_company_df = balance_data[balance_data["RUC"] == str(ruc)].copy()
@@ -354,6 +361,13 @@ if selected_company:
             "OTRAS CUENTAS POR PAGAR LARGO PLAZO": "PASIVO",
             "OTROS PASIVOS NO CORRIENTES": "PASIVO",
             "PATRIMONIO": "PATRIMONIO",
+            "CAPITAL": "PATRIMONIO",
+            "APORTES PARA FUTURA CAPITALIZACIÓN": "PATRIMONIO",
+            "PRIMA POR EMISIÓN PRIMARIA DE ACCIONES": "PATRIMONIO",
+            "RESERVAS": "PATRIMONIO",
+            "OTROS RESULTADOS INTEGRALES": "PATRIMONIO",
+            "RESULTADOS ACUMULADOS": "PATRIMONIO",
+            "RESULTADOS DEL EJERCICIO": "PATRIMONIO",
         }
         for idx, item in enumerate(balance_structure):
             col = item["column"]
