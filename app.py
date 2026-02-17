@@ -468,18 +468,21 @@ if selected_company:
                 "RESULTADOS DEL EJERCICIO",
             ],
         }
-        toggle_nodes = list(children_map.keys())
-        state_key = f"balance_expand_{ruc}"
-        if state_key not in st.session_state:
-            st.session_state[state_key] = {node: False for node in toggle_nodes}
-        expand_state = st.session_state[state_key]
+        ctl_col_1, ctl_col_2 = st.columns(2)
+        with ctl_col_1:
+            show_level_1 = st.checkbox(
+                "Desagregar cuentas Nivel 1",
+                value=False,
+                key=f"balance_lvl1_{ruc}",
+            )
+        with ctl_col_2:
+            show_level_2 = st.checkbox(
+                "Desagregar cuentas Nivel 2",
+                value=False,
+                key=f"balance_lvl2_{ruc}",
+            )
 
-        toggle_cols = st.columns(4)
-        for i, node in enumerate(toggle_nodes):
-            icon = "▼" if expand_state.get(node, False) else "▶"
-            with toggle_cols[i % 4]:
-                if st.button(f"{icon} {node}", key=f"toggle_{ruc}_{node}"):
-                    expand_state[node] = not expand_state.get(node, False)
+        show_level_1_effective = show_level_1 or show_level_2
 
         visible_rows = []
 
@@ -490,16 +493,20 @@ if selected_company:
                 return
 
             row_copy = row.copy()
-            if node in children_map:
-                icon = "▼" if expand_state.get(node, False) else "▶"
-                row_copy["Cuenta"] = f"{'   ' * depth}{icon} {item['label']}"
+            if depth == 0:
+                row_copy["Cuenta"] = f"= {item['label']}"
+            elif depth == 1:
+                row_copy["Cuenta"] = f"   |- {item['label']}"
             else:
-                row_copy["Cuenta"] = f"{'   ' * depth}• {item['label']}"
+                row_copy["Cuenta"] = f"      |--- {item['label']}"
             row_copy["_level"] = depth
             row_copy["_is_total"] = item.get("is_total", False)
             visible_rows.append(row_copy)
 
-            if expand_state.get(node, False):
+            if depth == 0 and show_level_1_effective:
+                for child in children_map.get(node, []):
+                    append_node(child, depth + 1)
+            elif depth == 1 and show_level_2:
                 for child in children_map.get(node, []):
                     append_node(child, depth + 1)
 
