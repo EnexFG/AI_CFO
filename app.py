@@ -111,12 +111,23 @@ def style_balance_row(row: pd.Series, total_rows: set[int], level_map: dict[int,
     return [""] * len(row)
 
 
-def to_excel_bytes(df: pd.DataFrame, sheet_name: str = "Sheet1") -> bytes:
-    buffer = io.BytesIO()
-    with pd.ExcelWriter(buffer) as writer:
-        df.to_excel(writer, index=False, sheet_name=sheet_name)
-    buffer.seek(0)
-    return buffer.getvalue()
+def build_export_file(df: pd.DataFrame, sheet_name: str = "Sheet1") -> tuple[bytes, str, str]:
+    for engine in ("xlsxwriter", "openpyxl"):
+        try:
+            buffer = io.BytesIO()
+            with pd.ExcelWriter(buffer, engine=engine) as writer:
+                df.to_excel(writer, index=False, sheet_name=sheet_name)
+            buffer.seek(0)
+            return (
+                buffer.getvalue(),
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                "xlsx",
+            )
+        except Exception:
+            continue
+
+    csv_bytes = df.to_csv(index=False).encode("utf-8-sig")
+    return csv_bytes, "text/csv", "csv"
 
 
 def safe_filename(text: str) -> str:
@@ -271,12 +282,13 @@ if selected_company:
 
     st.dataframe(styled_report, width="stretch", hide_index=True)
     report_export_df = report_df.copy()
-    report_file = f"analisis_perdidas_ganancias_{safe_filename(selected_company)}.xlsx"
+    report_bytes, report_mime, report_ext = build_export_file(report_export_df, "Perdidas_Ganancias")
+    report_file = f"analisis_perdidas_ganancias_{safe_filename(selected_company)}.{report_ext}"
     st.download_button(
         "Descargar Excel - Perdidas y Ganancias",
-        data=to_excel_bytes(report_export_df, "Perdidas_Ganancias"),
+        data=report_bytes,
         file_name=report_file,
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        mime=report_mime,
         key=f"download_pyg_{safe_filename(selected_company)}",
     )
 
@@ -504,12 +516,13 @@ if selected_company:
 
         st.dataframe(styled_balance, width="stretch", hide_index=True)
         balance_export_df = view_df.copy()
-        balance_file = f"analisis_balance_general_{safe_filename(selected_company)}.xlsx"
+        balance_bytes, balance_mime, balance_ext = build_export_file(balance_export_df, "Balance_General")
+        balance_file = f"analisis_balance_general_{safe_filename(selected_company)}.{balance_ext}"
         st.download_button(
             "Descargar Excel - Balance General",
-            data=to_excel_bytes(balance_export_df, "Balance_General"),
+            data=balance_bytes,
             file_name=balance_file,
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            mime=balance_mime,
             key=f"download_bg_{safe_filename(selected_company)}",
         )
 else:
