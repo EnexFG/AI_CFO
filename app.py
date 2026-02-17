@@ -113,6 +113,9 @@ render_login_gate()
 header_col, logo_col = st.columns([5.5, 1.5], vertical_alignment="top")
 with header_col:
     st.title("Andersen Intelligence")
+    st.markdown(
+        "Inteligencia de datos financieros que convierte información contable en insights accionables para evaluar desempeño, estructura y riesgo empresarial."
+    )
     st.caption("Datos de Supercias 2021-2024")
 with logo_col:
     logo_path = Path("Logo Andersen.png")
