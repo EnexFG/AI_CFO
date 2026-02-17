@@ -116,7 +116,6 @@ with header_col:
     st.markdown(
         "Inteligencia de datos financieros que convierte información contable en insights accionables para evaluar desempeño, estructura y riesgo empresarial."
     )
-    st.caption("Datos de Supercias 2021-2024")
 with logo_col:
     logo_path = Path("Logo Andersen.png")
     if logo_path.exists():
