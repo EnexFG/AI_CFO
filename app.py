@@ -254,7 +254,7 @@ if selected_company:
         .apply(lambda row: style_income_statement_row(row, total_rows, detail_rows), axis=1)
     )
 
-    st.dataframe(styled_report, use_container_width=True, hide_index=True)
+    st.dataframe(styled_report, width="stretch", hide_index=True)
 
     st.markdown("#### Análisis de Balance General")
     balance_structure = [
@@ -402,6 +402,7 @@ if selected_company:
 
             balance_rows.append(
                 {
+                    "_column": col,
                     "Cuenta": display_label,
                     "2023": value_2023,
                     "2024": value_2024,
@@ -415,22 +416,96 @@ if selected_company:
         if missing_balance_cols:
             st.warning(f"Columnas de balance no encontradas: {', '.join(missing_balance_cols)}")
 
-        styled_balance = (
-            balance_df.style
-            .format(
-                {
-                    "2023": "{:,.0f}",
-                    "2024": "{:,.0f}",
-                    "Variación 2024/2023": "{:,.0f}",
-                    "Comparativo Horizontal": "{:.2f}%",
-                    "Comparativo Vertical": "{:.2f}%",
-                },
-                na_rep="-",
-            )
-            .apply(lambda row: style_balance_row(row, balance_total_rows, balance_level_map), axis=1)
-            .apply(lambda row: style_hierarchy_label(row, balance_level_map), axis=1, subset=["Cuenta"])
-        )
+        def render_balance_subset(df_subset: pd.DataFrame) -> None:
+            if df_subset.empty:
+                return
 
-        st.dataframe(styled_balance, use_container_width=True, hide_index=True)
+            view_df = df_subset.drop(columns=["_column"])
+            styled = (
+                view_df.style
+                .format(
+                    {
+                        "2023": "{:,.0f}",
+                        "2024": "{:,.0f}",
+                        "Variación 2024/2023": "{:,.0f}",
+                        "Comparativo Horizontal": "{:.2f}%",
+                        "Comparativo Vertical": "{:.2f}%",
+                    },
+                    na_rep="-",
+                )
+                .apply(lambda row: style_balance_row(row, balance_total_rows, balance_level_map), axis=1)
+                .apply(lambda row: style_hierarchy_label(row, balance_level_map), axis=1, subset=["Cuenta"])
+            )
+            st.dataframe(styled, width="stretch", hide_index=True)
+
+        top_accounts = ["ACTIVO", "PASIVO", "PATRIMONIO"]
+        activo_lvl1 = ["ACTIVO CORRIENTE", "ACTIVO NO CORRIENTE"]
+        activo_corr_det = [
+            "DISPONIBLE",
+            "INVERSIONES",
+            "CUENTAS POR COBRAR CLIENTES",
+            "CUENTAS POR COBRAR RELACIONADAS",
+            "PROVISIÓN INCOBRABLE Y DETERIORO",
+            "INVENTARIO",
+            "CRÉDITO TRIBUTARIO",
+            "OTROS ACTIVOS CORRIENTES",
+        ]
+        activo_no_corr_det = [
+            "PROPIEDAD, PLANTA Y EQUIPO",
+            "PROPIEDADES DE INVERSIÓN",
+            "ACTIVOS BIOLÓGICOS",
+            "ACTIVO INTANGIBLE",
+            "ACTIVOS POR IMPUESTOS DIFERIDOS",
+            "ACTIVOS FINANCIEROS NO CORRIENTES",
+            "DERECHO DE USO POR ACTIVOS ARRENDADOS",
+            "DOCUMENTOS Y CUENTAS POR COBRAR NO RELACIONADOS",
+            "DOCUMENTOS Y CUENTAS POR COBRAR RELACIONADOS",
+            "OTROS ACTIVOS NO CORRIENTES",
+        ]
+        pasivo_lvl1 = ["PASIVO CORRIENTE", "PASIVO NO CORRIENTE"]
+        pasivo_corr_det = [
+            "CUENTAS POR PAGAR",
+            "OBLIGACIONES FINACIERAS CORTO PLAZO",
+            "IMPUESTOS POR PAGAR",
+            "OTRAS CUENTAS POR PAGAR",
+            "PROVISIONES",
+            "OTROS PASIVOS CORRIENTES",
+        ]
+        pasivo_no_corr_det = [
+            "OBLIGACIONES FINANCIERAS LARGO PLAZO",
+            "ARRENDAMIENTO LARGO PLAZO",
+            "PASIVO DIFERIDO",
+            "BENEFICIOS EMPLEADOS LARGO PLAZO",
+            "OTRAS CUENTAS POR PAGAR LARGO PLAZO",
+            "OTROS PASIVOS NO CORRIENTES",
+        ]
+        patrimonio_det = [
+            "CAPITAL",
+            "APORTES PARA FUTURA CAPITALIZACIÓN",
+            "PRIMA POR EMISIÓN PRIMARIA DE ACCIONES",
+            "RESERVAS",
+            "OTROS RESULTADOS INTEGRALES",
+            "RESULTADOS ACUMULADOS",
+            "RESULTADOS DEL EJERCICIO",
+        ]
+
+        render_balance_subset(balance_df[balance_df["_column"].isin(top_accounts)])
+
+        with st.expander("ACTIVO - ver desagregaciones"):
+            render_balance_subset(balance_df[balance_df["_column"].isin(activo_lvl1)])
+            with st.expander("ACTIVO CORRIENTE - detalle"):
+                render_balance_subset(balance_df[balance_df["_column"].isin(activo_corr_det)])
+            with st.expander("ACTIVO NO CORRIENTE - detalle"):
+                render_balance_subset(balance_df[balance_df["_column"].isin(activo_no_corr_det)])
+
+        with st.expander("PASIVO - ver desagregaciones"):
+            render_balance_subset(balance_df[balance_df["_column"].isin(pasivo_lvl1)])
+            with st.expander("PASIVO CORRIENTE - detalle"):
+                render_balance_subset(balance_df[balance_df["_column"].isin(pasivo_corr_det)])
+            with st.expander("PASIVO NO CORRIENTE - detalle"):
+                render_balance_subset(balance_df[balance_df["_column"].isin(pasivo_no_corr_det)])
+
+        with st.expander("PATRIMONIO - ver desagregaciones"):
+            render_balance_subset(balance_df[balance_df["_column"].isin(patrimonio_det)])
 else:
     st.info("Selecciona una empresa para visualizar su estado de resultados.")
