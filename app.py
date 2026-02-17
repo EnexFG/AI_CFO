@@ -112,7 +112,7 @@ def style_balance_row(row: pd.Series, total_rows: set[int], level_map: dict[int,
 render_login_gate()
 header_col, logo_col = st.columns([5.5, 1.5], vertical_alignment="top")
 with header_col:
-    st.title("Análisis de Pérdidas y Ganancias")
+    st.title("Andersen Intelligence")
     st.caption("Datos de Supercias 2021-2024")
 with logo_col:
     logo_path = Path("Logo Andersen.png")
@@ -188,7 +188,7 @@ if selected_company:
     st.subheader(selected_company)
     st.write(f"**RUC:** {ruc}")
     ingresos_2024 = annual_df.loc[2024, "INGRESOS"] if "INGRESOS" in annual_df.columns else pd.NA
-    st.markdown("#### Estado de Resultados")
+    st.markdown("#### Análisis de Pérdidas y Ganancias")
 
     report_rows = []
     total_rows = set()
