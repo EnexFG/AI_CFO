@@ -1,4 +1,5 @@
 import base64
+import io
 from pathlib import Path
 
 import pandas as pd
@@ -108,6 +109,18 @@ def style_balance_row(row: pd.Series, total_rows: set[int], level_map: dict[int,
     if level == 2:
         return ["background-color: #fcfcfd; color: #4b5563;"] * len(row)
     return [""] * len(row)
+
+
+def to_excel_bytes(df: pd.DataFrame, sheet_name: str = "Sheet1") -> bytes:
+    buffer = io.BytesIO()
+    with pd.ExcelWriter(buffer) as writer:
+        df.to_excel(writer, index=False, sheet_name=sheet_name)
+    buffer.seek(0)
+    return buffer.getvalue()
+
+
+def safe_filename(text: str) -> str:
+    return "".join(c if c.isalnum() or c in ("-", "_") else "_" for c in str(text)).strip("_")
 
 
 render_login_gate()
@@ -257,6 +270,15 @@ if selected_company:
     )
 
     st.dataframe(styled_report, width="stretch", hide_index=True)
+    report_export_df = report_df.copy()
+    report_file = f"analisis_perdidas_ganancias_{safe_filename(selected_company)}.xlsx"
+    st.download_button(
+        "Descargar Excel - Perdidas y Ganancias",
+        data=to_excel_bytes(report_export_df, "Perdidas_Ganancias"),
+        file_name=report_file,
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        key=f"download_pyg_{safe_filename(selected_company)}",
+    )
 
     st.markdown("#### Analisis de Balance General")
     balance_structure = [
@@ -481,5 +503,14 @@ if selected_company:
         )
 
         st.dataframe(styled_balance, width="stretch", hide_index=True)
+        balance_export_df = view_df.copy()
+        balance_file = f"analisis_balance_general_{safe_filename(selected_company)}.xlsx"
+        st.download_button(
+            "Descargar Excel - Balance General",
+            data=to_excel_bytes(balance_export_df, "Balance_General"),
+            file_name=balance_file,
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            key=f"download_bg_{safe_filename(selected_company)}",
+        )
 else:
     st.info("Selecciona una empresa para visualizar su analisis financiero.")
