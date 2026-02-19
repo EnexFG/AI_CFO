@@ -755,7 +755,34 @@ if selected_company:
         if graph_1_df.dropna(how="all").empty:
             st.warning("No hay datos suficientes para el Grafico 1.")
         else:
-            st.bar_chart(graph_1_df, height=320, stack=False)
+            graph_1_order = ["INGRESOS", "COSTO DE VENTAS", "UTILIDAD BRUTA"]
+            graph_1_long = (
+                graph_1_df.reset_index()
+                .melt(
+                    id_vars="AÑO",
+                    value_vars=graph_1_order,
+                    var_name="Cuenta",
+                    value_name="Valor",
+                )
+                .dropna(subset=["Valor"])
+            )
+            chart_1 = (
+                alt.Chart(graph_1_long)
+                .mark_bar()
+                .encode(
+                    x=alt.X("AÑO:O", title="AÑO"),
+                    xOffset=alt.XOffset("Cuenta:N", sort=graph_1_order),
+                    y=alt.Y("Valor:Q", title="Valor"),
+                    color=alt.Color(
+                        "Cuenta:N",
+                        title="Cuenta",
+                        scale=alt.Scale(domain=graph_1_order),
+                    ),
+                    tooltip=["AÑO:O", "Cuenta:N", alt.Tooltip("Valor:Q", format=",.0f")],
+                )
+                .properties(height=320)
+            )
+            st.altair_chart(chart_1, use_container_width=True)
 
         st.markdown("**Gráfico 2: Evolución de Activo, Pasivo y Patrimonio (Barras apiladas)**")
         balance_company_df_graph = balance_data[balance_data["RUC"] == str(ruc)].copy()
