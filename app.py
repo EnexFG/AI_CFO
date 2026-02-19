@@ -622,16 +622,27 @@ if selected_company:
                 )
 
             indicators_table_df = pd.DataFrame(indicator_rows)
-            styled_indicators = indicators_table_df.style.format(
-                {
-                    "2021": "{:,.2f}",
-                    "2022": "{:,.2f}",
-                    "2023": "{:,.2f}",
-                    "2024": "{:,.2f}",
-                },
-                na_rep="-",
-            )
-            st.dataframe(styled_indicators, width="stretch", hide_index=True)
+            percent_indicators = {
+                "MARGEN BRUTO",
+                "MARGEN EBITDA",
+                "MARGEN DE UTILIDAD",
+                "ROA",
+                "ROE",
+                "ENDEUDAMIENTO",
+            }
+
+            indicators_display_df = indicators_table_df.copy()
+            for year_col in ["2021", "2022", "2023", "2024"]:
+                indicators_display_df[year_col] = indicators_display_df.apply(
+                    lambda row: (
+                        f"{row[year_col] * 100:.2f}%"
+                        if row["Indicador"] in percent_indicators and pd.notna(row[year_col])
+                        else (f"{row[year_col]:,.2f}" if pd.notna(row[year_col]) else "-")
+                    ),
+                    axis=1,
+                )
+
+            st.dataframe(indicators_display_df, width="stretch", hide_index=True)
 
             if missing_indicators:
                 st.warning(f"Indicadores no encontrados en el dataset: {', '.join(missing_indicators)}")
