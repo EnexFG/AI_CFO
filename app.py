@@ -2,6 +2,7 @@ import base64
 import io
 from pathlib import Path
 
+import altair as alt
 import pandas as pd
 import streamlit as st
 
@@ -252,11 +253,12 @@ if selected_company:
     ruc = company_df["RUC"].dropna().astype(str).iloc[0] if not company_df["RUC"].dropna().empty else "-"
     st.subheader(selected_company)
     st.write(f"**RUC:** {ruc}")
-    tab_pyg, tab_bg, tab_ind = st.tabs(
+    tab_pyg, tab_bg, tab_ind, tab_graph = st.tabs(
         [
             "Analisis de Perdidas y Ganancias",
             "Analisis de Balance General",
             "Indicadores Financieros Clave",
+            "Gráficos Seleccionados",
         ]
     )
 
@@ -728,5 +730,175 @@ if selected_company:
 
                 if missing_indicators:
                     st.warning(f"Indicadores no encontrados en el dataset: {', '.join(missing_indicators)}")
+
+    with tab_graph:
+        st.markdown("#### Gráficos Seleccionados")
+
+        st.markdown("**Gráfico 1: Evolución de Ingresos, Costo de Ventas y Utilidad Bruta**")
+        utilidad_bruta_series = None
+        if "UTILIDAD BRUTA" in annual_df.columns:
+            utilidad_bruta_series = annual_df["UTILIDAD BRUTA"]
+        elif "CONTRIBUCIÓN MARGINAL" in annual_df.columns:
+            utilidad_bruta_series = annual_df["CONTRIBUCIÓN MARGINAL"]
+        elif "INGRESOS" in annual_df.columns and "COSTO DE VENTAS" in annual_df.columns:
+            utilidad_bruta_series = annual_df["INGRESOS"] - annual_df["COSTO DE VENTAS"]
+
+        graph_1_df = pd.DataFrame(
+            {
+                "INGRESOS": annual_df["INGRESOS"] if "INGRESOS" in annual_df.columns else pd.NA,
+                "COSTO DE VENTAS": annual_df["COSTO DE VENTAS"] if "COSTO DE VENTAS" in annual_df.columns else pd.NA,
+                "UTILIDAD BRUTA": utilidad_bruta_series if utilidad_bruta_series is not None else pd.NA,
+            },
+            index=annual_df.index,
+        )
+        graph_1_df.index.name = "AÑO"
+        if graph_1_df.dropna(how="all").empty:
+            st.warning("No hay datos suficientes para el Grafico 1.")
+        else:
+            st.bar_chart(graph_1_df, height=320)
+
+        st.markdown("**Gráfico 2: Evolución de Activo, Pasivo y Patrimonio (Barras apiladas)**")
+        balance_company_df_graph = balance_data[balance_data["RUC"] == str(ruc)].copy()
+        if balance_company_df_graph.empty:
+            balance_company_df_graph = balance_data[balance_data["NOMBRE"] == selected_company].copy()
+
+        graph_2_columns = ["ACTIVO", "PASIVO", "PATRIMONIO"]
+        available_graph_2_cols = [col for col in graph_2_columns if col in balance_company_df_graph.columns]
+        if balance_company_df_graph.empty or not available_graph_2_cols:
+            st.warning("No hay datos suficientes para el Grafico 2.")
+        else:
+            annual_balance_graph_df = (
+                balance_company_df_graph.groupby("AÑO", dropna=False)[available_graph_2_cols]
+                .sum(numeric_only=True)
+                .sort_index()
+                .reset_index()
+            )
+            graph_2_long = annual_balance_graph_df.melt(
+                id_vars="AÑO",
+                value_vars=available_graph_2_cols,
+                var_name="Cuenta",
+                value_name="Valor",
+            )
+            graph_2_long = graph_2_long.dropna(subset=["Valor"])
+
+            if graph_2_long.empty:
+                st.warning("No hay datos suficientes para el Grafico 2.")
+            else:
+                chart_2 = (
+                    alt.Chart(graph_2_long)
+                    .mark_bar()
+                    .encode(
+                        x=alt.X("AÑO:O", title="AÑO"),
+                        y=alt.Y("Valor:Q", title="Valor"),
+                        color=alt.Color("Cuenta:N", title="Cuenta"),
+                        tooltip=["AÑO:O", "Cuenta:N", alt.Tooltip("Valor:Q", format=",.0f")],
+                    )
+                    .properties(height=320)
+                )
+                st.altair_chart(chart_2, use_container_width=True)
+
+        st.markdown("**Gráfico 3: Evolución de ROE y ROA**")
+        if indicators_data is None:
+            st.warning("No hay datos de indicadores para el Grafico 3.")
+        else:
+            indicators_company_df_graph = pd.DataFrame()
+            if "RUC" in indicators_data.columns:
+                indicators_company_df_graph = indicators_data[indicators_data["RUC"] == str(ruc)].copy()
+            if indicators_company_df_graph.empty and "NOMBRE" in indicators_data.columns:
+                indicators_company_df_graph = indicators_data[indicators_data["NOMBRE"] == selected_company].copy()
+
+            graph_3_columns = [col for col in ["ROE", "ROA"] if col in indicators_company_df_graph.columns]
+            if indicators_company_df_graph.empty or "AÑO" not in indicators_company_df_graph.columns or not graph_3_columns:
+                st.warning("No hay datos suficientes para el Grafico 3.")
+            else:
+                annual_indicators_graph_df = (
+                    indicators_company_df_graph.groupby("AÑO", dropna=False)[graph_3_columns]
+                    .mean(numeric_only=True)
+                    .sort_index()
+                    .reset_index()
+                )
+                for col in graph_3_columns:
+                    annual_indicators_graph_df[col] = annual_indicators_graph_df[col] * 100
+                graph_3_long = annual_indicators_graph_df.melt(
+                    id_vars="AÑO",
+                    value_vars=graph_3_columns,
+                    var_name="Indicador",
+                    value_name="Porcentaje",
+                )
+                graph_3_long = graph_3_long.dropna(subset=["Porcentaje"])
+
+                if graph_3_long.empty:
+                    st.warning("No hay datos suficientes para el Grafico 3.")
+                else:
+                    chart_3 = (
+                        alt.Chart(graph_3_long)
+                        .mark_line(point=True)
+                        .encode(
+                            x=alt.X("AÑO:O", title="AÑO"),
+                            y=alt.Y("Porcentaje:Q", title="%"),
+                            color=alt.Color("Indicador:N", title="Indicador"),
+                            tooltip=[
+                                "AÑO:O",
+                                "Indicador:N",
+                                alt.Tooltip("Porcentaje:Q", format=".2f"),
+                            ],
+                        )
+                        .properties(height=320)
+                    )
+                    st.altair_chart(chart_3, use_container_width=True)
+
+        st.markdown("**Gráfico 4: Evolución de Indicadores de Gestión de Capital de Trabajo**")
+        if indicators_data is None:
+            st.warning("No hay datos de indicadores para el Grafico 4.")
+        else:
+            indicators_company_df_graph = pd.DataFrame()
+            if "RUC" in indicators_data.columns:
+                indicators_company_df_graph = indicators_data[indicators_data["RUC"] == str(ruc)].copy()
+            if indicators_company_df_graph.empty and "NOMBRE" in indicators_data.columns:
+                indicators_company_df_graph = indicators_data[indicators_data["NOMBRE"] == selected_company].copy()
+
+            graph_4_columns = [
+                "DÍAS DE INVENTARIO",
+                "DÍAS DE COBRO",
+                "DÍAS DE PAGO",
+                "CICLO DE CONVERSIÓN DE EFECTIVO",
+            ]
+            available_graph_4_cols = [col for col in graph_4_columns if col in indicators_company_df_graph.columns]
+            if indicators_company_df_graph.empty or "AÑO" not in indicators_company_df_graph.columns or not available_graph_4_cols:
+                st.warning("No hay datos suficientes para el Grafico 4.")
+            else:
+                annual_graph_4_df = (
+                    indicators_company_df_graph.groupby("AÑO", dropna=False)[available_graph_4_cols]
+                    .mean(numeric_only=True)
+                    .sort_index()
+                    .reset_index()
+                )
+                graph_4_long = annual_graph_4_df.melt(
+                    id_vars="AÑO",
+                    value_vars=available_graph_4_cols,
+                    var_name="Indicador",
+                    value_name="Valor",
+                )
+                graph_4_long = graph_4_long.dropna(subset=["Valor"])
+
+                if graph_4_long.empty:
+                    st.warning("No hay datos suficientes para el Grafico 4.")
+                else:
+                    chart_4 = (
+                        alt.Chart(graph_4_long)
+                        .mark_line(point=True)
+                        .encode(
+                            x=alt.X("AÑO:O", title="AÑO"),
+                            y=alt.Y("Valor:Q", title="Dias"),
+                            color=alt.Color("Indicador:N", title="Indicador"),
+                            tooltip=[
+                                "AÑO:O",
+                                "Indicador:N",
+                                alt.Tooltip("Valor:Q", format=".2f"),
+                            ],
+                        )
+                        .properties(height=320)
+                    )
+                    st.altair_chart(chart_4, use_container_width=True)
 else:
     st.info("Selecciona una empresa para visualizar su analisis financiero.")
