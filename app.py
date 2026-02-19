@@ -642,7 +642,79 @@ if selected_company:
                     axis=1,
                 )
 
-            st.dataframe(indicators_display_df, width="stretch", hide_index=True)
+            indicator_groups = {
+                "INDICADORES DE RENTABILIDAD": [
+                    "MARGEN BRUTO",
+                    "MARGEN EBITDA",
+                    "MARGEN DE UTILIDAD",
+                    "ROE",
+                    "ROA",
+                ],
+                "INDICADORES DE ENDEUDAMIENTO": [
+                    "ENDEUDAMIENTO",
+                ],
+                "INDICADORES DE LIQUIDEZ": [
+                    "DÍAS DE INVENTARIO",
+                    "DÍAS DE COBRO",
+                    "DÍAS DE PAGO",
+                    "CICLO DE CONVERSIÓN DE EFECTIVO",
+                    "RAZÓN CORRIENTE",
+                    "PRUEBA ÁCIDA",
+                ],
+            }
+
+            display_map = indicators_display_df.set_index("Indicador").to_dict("index")
+            grouped_rows = []
+            for group_label, group_indicators in indicator_groups.items():
+                grouped_rows.append(
+                    {
+                        "_is_group": True,
+                        "Indicador": group_label,
+                        "2021": "",
+                        "2022": "",
+                        "2023": "",
+                        "2024": "",
+                    }
+                )
+                for indicator in group_indicators:
+                    row_values = display_map.get(
+                        indicator,
+                        {"2021": "-", "2022": "-", "2023": "-", "2024": "-"},
+                    )
+                    grouped_rows.append(
+                        {
+                            "_is_group": False,
+                            "Indicador": indicator,
+                            "2021": row_values["2021"],
+                            "2022": row_values["2022"],
+                            "2023": row_values["2023"],
+                            "2024": row_values["2024"],
+                        }
+                    )
+
+            indicators_grouped_df = pd.DataFrame(grouped_rows)
+            group_rows = set(indicators_grouped_df.index[indicators_grouped_df["_is_group"]].tolist())
+            indicators_view_df = indicators_grouped_df.drop(columns=["_is_group"])
+
+            def style_indicator_rows(row: pd.Series) -> list[str]:
+                if row.name in group_rows:
+                    return [
+                        "font-weight: 700; background-color: #eef2ff; border-top: 2px solid #c7d2fe; color: #1f2937;"
+                    ] * len(row)
+                return ["background-color: #ffffff;"] * len(row)
+
+            def style_indicator_label(row: pd.Series) -> list[str]:
+                if row.name in group_rows:
+                    return ["letter-spacing: 0.02em;"]
+                return ["padding-left: 1.2rem; color: #374151;"]
+
+            styled_indicators = (
+                indicators_view_df.style
+                .apply(style_indicator_rows, axis=1)
+                .apply(style_indicator_label, axis=1, subset=["Indicador"])
+                .set_properties(subset=["2021", "2022", "2023", "2024"], **{"text-align": "right"})
+            )
+            st.dataframe(styled_indicators, width="stretch", hide_index=True)
 
             if missing_indicators:
                 st.warning(f"Indicadores no encontrados en el dataset: {', '.join(missing_indicators)}")
