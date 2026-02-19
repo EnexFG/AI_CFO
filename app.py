@@ -252,471 +252,481 @@ if selected_company:
     ruc = company_df["RUC"].dropna().astype(str).iloc[0] if not company_df["RUC"].dropna().empty else "-"
     st.subheader(selected_company)
     st.write(f"**RUC:** {ruc}")
-    ingresos_2024 = annual_df.loc[2024, "INGRESOS"] if "INGRESOS" in annual_df.columns else pd.NA
-    st.markdown("#### Analisis de Perdidas y Ganancias")
-
-    report_rows = []
-    total_rows = set()
-    detail_rows = set()
-    for idx, item in enumerate(statement_structure):
-        column = item["column"]
-        value_2021 = annual_df.loc[2021, column] if column in annual_df.columns else pd.NA
-        value_2022 = annual_df.loc[2022, column] if column in annual_df.columns else pd.NA
-        value_2023 = annual_df.loc[2023, column] if column in annual_df.columns else pd.NA
-        value_2024 = annual_df.loc[2024, column] if column in annual_df.columns else pd.NA
-
-        var_abs = pd.NA
-        var_pct = pd.NA
-        pct_ingresos = pd.NA
-        if pd.notna(value_2023) and pd.notna(value_2024):
-            var_abs = value_2024 - value_2023
-            var_pct = (var_abs / value_2023 * 100) if value_2023 != 0 else pd.NA
-        if (
-            column in pct_income_rows
-            and pd.notna(value_2024)
-            and pd.notna(ingresos_2024)
-            and ingresos_2024 != 0
-        ):
-            pct_ingresos = (value_2024 / ingresos_2024) * 100
-
-        if item["is_total"]:
-            total_rows.add(idx)
-        if item["is_detail"]:
-            detail_rows.add(idx)
-
-        display_label = f"{item['sign']} {item['label']}".strip()
-        report_rows.append(
-            {
-                "Cuenta": display_label,
-                "2021": value_2021,
-                "2022": value_2022,
-                "2023": value_2023,
-                "2024": value_2024,
-                "% Ingresos": pct_ingresos,
-                "Variacion 2025/2024": var_abs,
-                "Variacion %": var_pct,
-            }
-        )
-
-    report_df = pd.DataFrame(report_rows)
-    if missing_columns:
-        st.warning(f"Columnas no encontradas en el dataset: {', '.join(missing_columns)}")
-
-    styled_report = (
-        report_df.style
-        .format(
-            {
-                "2021": "{:,.0f}",
-                "2022": "{:,.0f}",
-                "2023": "{:,.0f}",
-                "2024": "{:,.0f}",
-                "% Ingresos": "{:.2f}%",
-                "Variacion 2025/2024": "{:,.0f}",
-                "Variacion %": "{:.2f}%",
-            },
-            na_rep="-",
-        )
-        .apply(lambda row: style_income_statement_row(row, total_rows, detail_rows), axis=1)
+    tab_pyg, tab_bg, tab_ind = st.tabs(
+        [
+            "Analisis de Perdidas y Ganancias",
+            "Analisis de Balance General",
+            "Indicadores Financieros Clave",
+        ]
     )
 
-    st.dataframe(styled_report, width="stretch", hide_index=True)
-    report_export_df = report_df.copy()
-    try:
-        report_bytes = to_excel_bytes(report_export_df, "Perdidas_Ganancias")
-        report_file = f"analisis_perdidas_ganancias_{safe_filename(selected_company)}.xlsx"
-        st.download_button(
-            "Descargar Excel - Perdidas y Ganancias",
-            data=report_bytes,
-            file_name=report_file,
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            key=f"download_pyg_{safe_filename(selected_company)}",
-        )
-    except RuntimeError:
-        st.error("No se pudo generar Excel para Perdidas y Ganancias (falta xlsxwriter/openpyxl).")
+    with tab_pyg:
+        ingresos_2024 = annual_df.loc[2024, "INGRESOS"] if "INGRESOS" in annual_df.columns else pd.NA
+        st.markdown("#### Analisis de Perdidas y Ganancias")
 
-    st.markdown("#### Analisis de Balance General")
-    balance_structure = [
-        {"column": "ACTIVO", "label": "ACTIVO", "level": 0, "is_total": True, "is_detail": False},
-        {"column": "ACTIVO CORRIENTE", "label": "ACTIVO CORRIENTE", "level": 1, "is_total": False, "is_detail": True},
-        {"column": "DISPONIBLE", "label": "DISPONIBLE", "level": 2, "is_total": False, "is_detail": True},
-        {"column": "INVERSIONES", "label": "INVERSIONES", "level": 2, "is_total": False, "is_detail": True},
-        {"column": "CUENTAS POR COBRAR CLIENTES", "label": "CUENTAS POR COBRAR CLIENTES", "level": 2, "is_total": False, "is_detail": True},
-        {"column": "CUENTAS POR COBRAR RELACIONADAS", "label": "CUENTAS POR COBRAR RELACIONADAS", "level": 2, "is_total": False, "is_detail": True},
-        {"column": "PROVISIÓN INCOBRABLE Y DETERIORO", "label": "PROVISIÓN INCOBRABLE Y DETERIORO", "level": 2, "is_total": False, "is_detail": True},
-        {"column": "INVENTARIO", "label": "INVENTARIO", "level": 2, "is_total": False, "is_detail": True},
-        {"column": "CRÉDITO TRIBUTARIO", "label": "CRÉDITO TRIBUTARIO", "level": 2, "is_total": False, "is_detail": True},
-        {"column": "OTROS ACTIVOS CORRIENTES", "label": "OTROS ACTIVOS CORRIENTES", "level": 2, "is_total": False, "is_detail": True},
-        {"column": "ACTIVO NO CORRIENTE", "label": "ACTIVO NO CORRIENTE", "level": 1, "is_total": False, "is_detail": True},
-        {"column": "PROPIEDAD, PLANTA Y EQUIPO", "label": "PROPIEDAD, PLANTA Y EQUIPO", "level": 2, "is_total": False, "is_detail": True},
-        {"column": "PROPIEDADES DE INVERSIÓN", "label": "PROPIEDADES DE INVERSIÓN", "level": 2, "is_total": False, "is_detail": True},
-        {"column": "ACTIVOS BIOLÓGICOS", "label": "ACTIVOS BIOLÓGICOS", "level": 2, "is_total": False, "is_detail": True},
-        {"column": "ACTIVO INTANGIBLE", "label": "ACTIVO INTANGIBLE", "level": 2, "is_total": False, "is_detail": True},
-        {"column": "ACTIVOS POR IMPUESTOS DIFERIDOS", "label": "ACTIVOS POR IMPUESTOS DIFERIDOS", "level": 2, "is_total": False, "is_detail": True},
-        {"column": "ACTIVOS FINANCIEROS NO CORRIENTES", "label": "ACTIVOS FINANCIEROS NO CORRIENTES", "level": 2, "is_total": False, "is_detail": True},
-        {"column": "DERECHO DE USO POR ACTIVOS ARRENDADOS", "label": "DERECHO DE USO POR ACTIVOS ARRENDADOS", "level": 2, "is_total": False, "is_detail": True},
-        {"column": "DOCUMENTOS Y CUENTAS POR COBRAR NO RELACIONADOS", "label": "DOCUMENTOS Y CUENTAS POR COBRAR NO RELACIONADOS", "level": 2, "is_total": False, "is_detail": True},
-        {"column": "DOCUMENTOS Y CUENTAS POR COBRAR RELACIONADOS", "label": "DOCUMENTOS Y CUENTAS POR COBRAR RELACIONADOS", "level": 2, "is_total": False, "is_detail": True},
-        {"column": "OTROS ACTIVOS NO CORRIENTES", "label": "OTROS ACTIVOS NO CORRIENTES", "level": 2, "is_total": False, "is_detail": True},
-        {"column": "PASIVO", "label": "PASIVO", "level": 0, "is_total": True, "is_detail": False},
-        {"column": "PASIVO CORRIENTE", "label": "PASIVO CORRIENTE", "level": 1, "is_total": False, "is_detail": True},
-        {"column": "CUENTAS POR PAGAR", "label": "CUENTAS POR PAGAR", "level": 2, "is_total": False, "is_detail": True},
-        {"column": "OBLIGACIONES FINACIERAS CORTO PLAZO", "label": "OBLIGACIONES FINACIERAS CORTO PLAZO", "level": 2, "is_total": False, "is_detail": True},
-        {"column": "IMPUESTOS POR PAGAR", "label": "IMPUESTOS POR PAGAR", "level": 2, "is_total": False, "is_detail": True},
-        {"column": "OTRAS CUENTAS POR PAGAR", "label": "OTRAS CUENTAS POR PAGAR", "level": 2, "is_total": False, "is_detail": True},
-        {"column": "PROVISIONES", "label": "PROVISIONES", "level": 2, "is_total": False, "is_detail": True},
-        {"column": "OTROS PASIVOS CORRIENTES", "label": "OTROS PASIVOS CORRIENTES", "level": 2, "is_total": False, "is_detail": True},
-        {"column": "PASIVO NO CORRIENTE", "label": "PASIVO NO CORRIENTE", "level": 1, "is_total": False, "is_detail": True},
-        {"column": "OBLIGACIONES FINANCIERAS LARGO PLAZO", "label": "OBLIGACIONES FINANCIERAS LARGO PLAZO", "level": 2, "is_total": False, "is_detail": True},
-        {"column": "ARRENDAMIENTO LARGO PLAZO", "label": "ARRENDAMIENTO LARGO PLAZO", "level": 2, "is_total": False, "is_detail": True},
-        {"column": "PASIVO DIFERIDO", "label": "PASIVO DIFERIDO", "level": 2, "is_total": False, "is_detail": True},
-        {"column": "BENEFICIOS EMPLEADOS LARGO PLAZO", "label": "BENEFICIOS EMPLEADOS LARGO PLAZO", "level": 2, "is_total": False, "is_detail": True},
-        {"column": "OTRAS CUENTAS POR PAGAR LARGO PLAZO", "label": "OTRAS CUENTAS POR PAGAR LARGO PLAZO", "level": 2, "is_total": False, "is_detail": True},
-        {"column": "OTROS PASIVOS NO CORRIENTES", "label": "OTROS PASIVOS NO CORRIENTES", "level": 2, "is_total": False, "is_detail": True},
-        {"column": "PATRIMONIO", "label": "PATRIMONIO", "level": 0, "is_total": True, "is_detail": False},
-        {"column": "CAPITAL", "label": "CAPITAL", "level": 2, "is_total": False, "is_detail": True},
-        {"column": "APORTES PARA FUTURA CAPITALIZACIÓN", "label": "APORTES PARA FUTURA CAPITALIZACIÓN", "level": 2, "is_total": False, "is_detail": True},
-        {"column": "PRIMA POR EMISIÓN PRIMARIA DE ACCIONES", "label": "PRIMA POR EMISIÓN PRIMARIA DE ACCIONES", "level": 2, "is_total": False, "is_detail": True},
-        {"column": "RESERVAS", "label": "RESERVAS", "level": 2, "is_total": False, "is_detail": True},
-        {"column": "OTROS RESULTADOS INTEGRALES", "label": "OTROS RESULTADOS INTEGRALES", "level": 2, "is_total": False, "is_detail": True},
-        {"column": "RESULTADOS ACUMULADOS", "label": "RESULTADOS ACUMULADOS", "level": 2, "is_total": False, "is_detail": True},
-        {"column": "RESULTADOS DEL EJERCICIO", "label": "RESULTADOS DEL EJERCICIO", "level": 2, "is_total": False, "is_detail": True},
-    ]
-
-    balance_columns = [item["column"] for item in balance_structure]
-    balance_company_df = balance_data[balance_data["RUC"] == str(ruc)].copy()
-    if balance_company_df.empty:
-        balance_company_df = balance_data[balance_data["NOMBRE"] == selected_company].copy()
-
-    if balance_company_df.empty:
-        st.warning("No se encontro informacion de balance general para esta empresa.")
-    else:
-        available_balance_cols = [col for col in balance_columns if col in balance_company_df.columns]
-        missing_balance_cols = [col for col in balance_columns if col not in balance_company_df.columns]
-        annual_balance_df = (
-            balance_company_df.groupby("AÑO", dropna=False)[available_balance_cols]
-            .sum(numeric_only=True)
-            .reindex([2023, 2024])
-        )
-
-        vertical_parent = {item["column"]: "ACTIVO" for item in balance_structure if "ACTIVO" in item["column"] and item["column"] != "PATRIMONIO"}
-        vertical_parent.update({item["column"]: "PASIVO" for item in balance_structure if "PASIVO" in item["column"]})
-        vertical_parent.update(
-            {
-                "ACTIVO": "ACTIVO",
-                "PASIVO": "PASIVO",
-                "PATRIMONIO": "PATRIMONIO",
-                "CAPITAL": "PATRIMONIO",
-                "APORTES PARA FUTURA CAPITALIZACIÓN": "PATRIMONIO",
-                "PRIMA POR EMISIÓN PRIMARIA DE ACCIONES": "PATRIMONIO",
-                "RESERVAS": "PATRIMONIO",
-                "OTROS RESULTADOS INTEGRALES": "PATRIMONIO",
-                "RESULTADOS ACUMULADOS": "PATRIMONIO",
-                "RESULTADOS DEL EJERCICIO": "PATRIMONIO",
-            }
-        )
-
-        balance_rows = []
-        rows_by_col = {}
-        for item in balance_structure:
-            col = item["column"]
-            value_2023 = annual_balance_df.loc[2023, col] if col in annual_balance_df.columns else pd.NA
-            value_2024 = annual_balance_df.loc[2024, col] if col in annual_balance_df.columns else pd.NA
+        report_rows = []
+        total_rows = set()
+        detail_rows = set()
+        for idx, item in enumerate(statement_structure):
+            column = item["column"]
+            value_2021 = annual_df.loc[2021, column] if column in annual_df.columns else pd.NA
+            value_2022 = annual_df.loc[2022, column] if column in annual_df.columns else pd.NA
+            value_2023 = annual_df.loc[2023, column] if column in annual_df.columns else pd.NA
+            value_2024 = annual_df.loc[2024, column] if column in annual_df.columns else pd.NA
 
             var_abs = pd.NA
             var_pct = pd.NA
-            vertical_pct = pd.NA
+            pct_ingresos = pd.NA
             if pd.notna(value_2023) and pd.notna(value_2024):
                 var_abs = value_2024 - value_2023
                 var_pct = (var_abs / value_2023 * 100) if value_2023 != 0 else pd.NA
-            parent_col = vertical_parent.get(col)
-            if parent_col and parent_col in annual_balance_df.columns and pd.notna(value_2024):
-                parent_value_2024 = annual_balance_df.loc[2024, parent_col]
-                if pd.notna(parent_value_2024) and parent_value_2024 != 0:
-                    vertical_pct = (value_2024 / parent_value_2024) * 100
+            if (
+                column in pct_income_rows
+                and pd.notna(value_2024)
+                and pd.notna(ingresos_2024)
+                and ingresos_2024 != 0
+            ):
+                pct_ingresos = (value_2024 / ingresos_2024) * 100
 
-            row = {
-                "_column": col,
-                "_label": item["label"],
-                "_level": item.get("level", 0),
-                "_is_total": item.get("is_total", False),
-                "Cuenta": item["label"],
-                "2023": value_2023,
-                "2024": value_2024,
-                "Variacion 2024/2023": var_abs,
-                "Comparativo Horizontal": var_pct,
-                "Comparativo Vertical": vertical_pct,
-            }
-            balance_rows.append(row)
-            rows_by_col[col] = row
+            if item["is_total"]:
+                total_rows.add(idx)
+            if item["is_detail"]:
+                detail_rows.add(idx)
 
-        balance_df = pd.DataFrame(balance_rows)
-        if missing_balance_cols:
-            st.warning(f"Columnas de balance no encontradas: {', '.join(missing_balance_cols)}")
+            display_label = f"{item['sign']} {item['label']}".strip()
+            report_rows.append(
+                {
+                    "Cuenta": display_label,
+                    "2021": value_2021,
+                    "2022": value_2022,
+                    "2023": value_2023,
+                    "2024": value_2024,
+                    "% Ingresos": pct_ingresos,
+                    "Variacion 2025/2024": var_abs,
+                    "Variacion %": var_pct,
+                }
+            )
 
-        children_map = {
-            "ACTIVO": ["ACTIVO CORRIENTE", "ACTIVO NO CORRIENTE"],
-            "ACTIVO CORRIENTE": [
-                "DISPONIBLE",
-                "INVERSIONES",
-                "CUENTAS POR COBRAR CLIENTES",
-                "CUENTAS POR COBRAR RELACIONADAS",
-                "PROVISIÓN INCOBRABLE Y DETERIORO",
-                "INVENTARIO",
-                "CRÉDITO TRIBUTARIO",
-                "OTROS ACTIVOS CORRIENTES",
-            ],
-            "ACTIVO NO CORRIENTE": [
-                "PROPIEDAD, PLANTA Y EQUIPO",
-                "PROPIEDADES DE INVERSIÓN",
-                "ACTIVOS BIOLÓGICOS",
-                "ACTIVO INTANGIBLE",
-                "ACTIVOS POR IMPUESTOS DIFERIDOS",
-                "ACTIVOS FINANCIEROS NO CORRIENTES",
-                "DERECHO DE USO POR ACTIVOS ARRENDADOS",
-                "DOCUMENTOS Y CUENTAS POR COBRAR NO RELACIONADOS",
-                "DOCUMENTOS Y CUENTAS POR COBRAR RELACIONADOS",
-                "OTROS ACTIVOS NO CORRIENTES",
-            ],
-            "PASIVO": ["PASIVO CORRIENTE", "PASIVO NO CORRIENTE"],
-            "PASIVO CORRIENTE": [
-                "CUENTAS POR PAGAR",
-                "OBLIGACIONES FINACIERAS CORTO PLAZO",
-                "IMPUESTOS POR PAGAR",
-                "OTRAS CUENTAS POR PAGAR",
-                "PROVISIONES",
-                "OTROS PASIVOS CORRIENTES",
-            ],
-            "PASIVO NO CORRIENTE": [
-                "OBLIGACIONES FINANCIERAS LARGO PLAZO",
-                "ARRENDAMIENTO LARGO PLAZO",
-                "PASIVO DIFERIDO",
-                "BENEFICIOS EMPLEADOS LARGO PLAZO",
-                "OTRAS CUENTAS POR PAGAR LARGO PLAZO",
-                "OTROS PASIVOS NO CORRIENTES",
-            ],
-            "PATRIMONIO": [
-                "CAPITAL",
-                "APORTES PARA FUTURA CAPITALIZACIÓN",
-                "PRIMA POR EMISIÓN PRIMARIA DE ACCIONES",
-                "RESERVAS",
-                "OTROS RESULTADOS INTEGRALES",
-                "RESULTADOS ACUMULADOS",
-                "RESULTADOS DEL EJERCICIO",
-            ],
-        }
+        report_df = pd.DataFrame(report_rows)
+        if missing_columns:
+            st.warning(f"Columnas no encontradas en el dataset: {', '.join(missing_columns)}")
 
-        show_level_1 = st.checkbox("Desagregar cuentas Nivel 1", value=False, key=f"bal_l1_{ruc}")
-        show_level_2 = st.checkbox("Desagregar cuentas Nivel 2", value=False, key=f"bal_l2_{ruc}")
-        show_level_1_effective = show_level_1 or show_level_2
-
-        visible_rows = []
-
-        def append_node(node: str, depth: int) -> None:
-            row = rows_by_col.get(node)
-            if row is None:
-                return
-
-            row_copy = row.copy()
-            if depth == 0:
-                row_copy["Cuenta"] = f"= {row_copy['_label']}"
-            elif depth == 1:
-                row_copy["Cuenta"] = f"   |- {row_copy['_label']}"
-            else:
-                row_copy["Cuenta"] = f"      |--- {row_copy['_label']}"
-
-            visible_rows.append(row_copy)
-            if depth == 0 and show_level_1_effective:
-                for child in children_map.get(node, []):
-                    append_node(child, depth + 1)
-            elif depth == 1 and show_level_2:
-                for child in children_map.get(node, []):
-                    append_node(child, depth + 1)
-
-        for root in ["ACTIVO", "PASIVO", "PATRIMONIO"]:
-            append_node(root, 0)
-
-        visible_df = pd.DataFrame(visible_rows)
-        visible_total_rows = set(visible_df.index[visible_df["_is_total"]].tolist())
-        visible_level_map = {idx: int(level) for idx, level in visible_df["_level"].items()}
-        view_df = visible_df.drop(columns=["_column", "_label", "_level", "_is_total"])
-
-        styled_balance = (
-            view_df.style
+        styled_report = (
+            report_df.style
             .format(
                 {
+                    "2021": "{:,.0f}",
+                    "2022": "{:,.0f}",
                     "2023": "{:,.0f}",
                     "2024": "{:,.0f}",
-                    "Variacion 2024/2023": "{:,.0f}",
-                    "Comparativo Horizontal": "{:.2f}%",
-                    "Comparativo Vertical": "{:.2f}%",
+                    "% Ingresos": "{:.2f}%",
+                    "Variacion 2025/2024": "{:,.0f}",
+                    "Variacion %": "{:.2f}%",
                 },
                 na_rep="-",
             )
-            .apply(lambda row: style_balance_row(row, visible_total_rows, visible_level_map), axis=1)
-            .apply(lambda row: style_hierarchy_label(row, visible_level_map), axis=1, subset=["Cuenta"])
+            .apply(lambda row: style_income_statement_row(row, total_rows, detail_rows), axis=1)
         )
 
-        st.dataframe(styled_balance, width="stretch", hide_index=True)
-        balance_export_df = view_df.copy()
+        st.dataframe(styled_report, width="stretch", hide_index=True)
+        report_export_df = report_df.copy()
         try:
-            balance_bytes = to_excel_bytes(balance_export_df, "Balance_General")
-            balance_file = f"analisis_balance_general_{safe_filename(selected_company)}.xlsx"
+            report_bytes = to_excel_bytes(report_export_df, "Perdidas_Ganancias")
+            report_file = f"analisis_perdidas_ganancias_{safe_filename(selected_company)}.xlsx"
             st.download_button(
-                "Descargar Excel - Balance General",
-                data=balance_bytes,
-                file_name=balance_file,
+                "Descargar Excel - Perdidas y Ganancias",
+                data=report_bytes,
+                file_name=report_file,
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                key=f"download_bg_{safe_filename(selected_company)}",
+                key=f"download_pyg_{safe_filename(selected_company)}",
             )
         except RuntimeError:
-            st.error("No se pudo generar Excel para Balance General (falta xlsxwriter/openpyxl).")
+            st.error("No se pudo generar Excel para Perdidas y Ganancias (falta xlsxwriter/openpyxl).")
 
-    st.markdown("#### Indicadores Financieros Clave")
-    indicator_list = [
-        "MARGEN BRUTO",
-        "MARGEN EBITDA",
-        "MARGEN DE UTILIDAD",
-        "ROA",
-        "ROE",
-        "ENDEUDAMIENTO",
-        "DÍAS DE INVENTARIO",
-        "DÍAS DE COBRO",
-        "DÍAS DE PAGO",
-        "CICLO DE CONVERSIÓN DE EFECTIVO",
-        "RAZÓN CORRIENTE",
-        "PRUEBA ÁCIDA",
-    ]
+    with tab_bg:
+        st.markdown("#### Analisis de Balance General")
+        balance_structure = [
+            {"column": "ACTIVO", "label": "ACTIVO", "level": 0, "is_total": True, "is_detail": False},
+            {"column": "ACTIVO CORRIENTE", "label": "ACTIVO CORRIENTE", "level": 1, "is_total": False, "is_detail": True},
+            {"column": "DISPONIBLE", "label": "DISPONIBLE", "level": 2, "is_total": False, "is_detail": True},
+            {"column": "INVERSIONES", "label": "INVERSIONES", "level": 2, "is_total": False, "is_detail": True},
+            {"column": "CUENTAS POR COBRAR CLIENTES", "label": "CUENTAS POR COBRAR CLIENTES", "level": 2, "is_total": False, "is_detail": True},
+            {"column": "CUENTAS POR COBRAR RELACIONADAS", "label": "CUENTAS POR COBRAR RELACIONADAS", "level": 2, "is_total": False, "is_detail": True},
+            {"column": "PROVISIÓN INCOBRABLE Y DETERIORO", "label": "PROVISIÓN INCOBRABLE Y DETERIORO", "level": 2, "is_total": False, "is_detail": True},
+            {"column": "INVENTARIO", "label": "INVENTARIO", "level": 2, "is_total": False, "is_detail": True},
+            {"column": "CRÉDITO TRIBUTARIO", "label": "CRÉDITO TRIBUTARIO", "level": 2, "is_total": False, "is_detail": True},
+            {"column": "OTROS ACTIVOS CORRIENTES", "label": "OTROS ACTIVOS CORRIENTES", "level": 2, "is_total": False, "is_detail": True},
+            {"column": "ACTIVO NO CORRIENTE", "label": "ACTIVO NO CORRIENTE", "level": 1, "is_total": False, "is_detail": True},
+            {"column": "PROPIEDAD, PLANTA Y EQUIPO", "label": "PROPIEDAD, PLANTA Y EQUIPO", "level": 2, "is_total": False, "is_detail": True},
+            {"column": "PROPIEDADES DE INVERSIÓN", "label": "PROPIEDADES DE INVERSIÓN", "level": 2, "is_total": False, "is_detail": True},
+            {"column": "ACTIVOS BIOLÓGICOS", "label": "ACTIVOS BIOLÓGICOS", "level": 2, "is_total": False, "is_detail": True},
+            {"column": "ACTIVO INTANGIBLE", "label": "ACTIVO INTANGIBLE", "level": 2, "is_total": False, "is_detail": True},
+            {"column": "ACTIVOS POR IMPUESTOS DIFERIDOS", "label": "ACTIVOS POR IMPUESTOS DIFERIDOS", "level": 2, "is_total": False, "is_detail": True},
+            {"column": "ACTIVOS FINANCIEROS NO CORRIENTES", "label": "ACTIVOS FINANCIEROS NO CORRIENTES", "level": 2, "is_total": False, "is_detail": True},
+            {"column": "DERECHO DE USO POR ACTIVOS ARRENDADOS", "label": "DERECHO DE USO POR ACTIVOS ARRENDADOS", "level": 2, "is_total": False, "is_detail": True},
+            {"column": "DOCUMENTOS Y CUENTAS POR COBRAR NO RELACIONADOS", "label": "DOCUMENTOS Y CUENTAS POR COBRAR NO RELACIONADOS", "level": 2, "is_total": False, "is_detail": True},
+            {"column": "DOCUMENTOS Y CUENTAS POR COBRAR RELACIONADOS", "label": "DOCUMENTOS Y CUENTAS POR COBRAR RELACIONADOS", "level": 2, "is_total": False, "is_detail": True},
+            {"column": "OTROS ACTIVOS NO CORRIENTES", "label": "OTROS ACTIVOS NO CORRIENTES", "level": 2, "is_total": False, "is_detail": True},
+            {"column": "PASIVO", "label": "PASIVO", "level": 0, "is_total": True, "is_detail": False},
+            {"column": "PASIVO CORRIENTE", "label": "PASIVO CORRIENTE", "level": 1, "is_total": False, "is_detail": True},
+            {"column": "CUENTAS POR PAGAR", "label": "CUENTAS POR PAGAR", "level": 2, "is_total": False, "is_detail": True},
+            {"column": "OBLIGACIONES FINACIERAS CORTO PLAZO", "label": "OBLIGACIONES FINACIERAS CORTO PLAZO", "level": 2, "is_total": False, "is_detail": True},
+            {"column": "IMPUESTOS POR PAGAR", "label": "IMPUESTOS POR PAGAR", "level": 2, "is_total": False, "is_detail": True},
+            {"column": "OTRAS CUENTAS POR PAGAR", "label": "OTRAS CUENTAS POR PAGAR", "level": 2, "is_total": False, "is_detail": True},
+            {"column": "PROVISIONES", "label": "PROVISIONES", "level": 2, "is_total": False, "is_detail": True},
+            {"column": "OTROS PASIVOS CORRIENTES", "label": "OTROS PASIVOS CORRIENTES", "level": 2, "is_total": False, "is_detail": True},
+            {"column": "PASIVO NO CORRIENTE", "label": "PASIVO NO CORRIENTE", "level": 1, "is_total": False, "is_detail": True},
+            {"column": "OBLIGACIONES FINANCIERAS LARGO PLAZO", "label": "OBLIGACIONES FINANCIERAS LARGO PLAZO", "level": 2, "is_total": False, "is_detail": True},
+            {"column": "ARRENDAMIENTO LARGO PLAZO", "label": "ARRENDAMIENTO LARGO PLAZO", "level": 2, "is_total": False, "is_detail": True},
+            {"column": "PASIVO DIFERIDO", "label": "PASIVO DIFERIDO", "level": 2, "is_total": False, "is_detail": True},
+            {"column": "BENEFICIOS EMPLEADOS LARGO PLAZO", "label": "BENEFICIOS EMPLEADOS LARGO PLAZO", "level": 2, "is_total": False, "is_detail": True},
+            {"column": "OTRAS CUENTAS POR PAGAR LARGO PLAZO", "label": "OTRAS CUENTAS POR PAGAR LARGO PLAZO", "level": 2, "is_total": False, "is_detail": True},
+            {"column": "OTROS PASIVOS NO CORRIENTES", "label": "OTROS PASIVOS NO CORRIENTES", "level": 2, "is_total": False, "is_detail": True},
+            {"column": "PATRIMONIO", "label": "PATRIMONIO", "level": 0, "is_total": True, "is_detail": False},
+            {"column": "CAPITAL", "label": "CAPITAL", "level": 2, "is_total": False, "is_detail": True},
+            {"column": "APORTES PARA FUTURA CAPITALIZACIÓN", "label": "APORTES PARA FUTURA CAPITALIZACIÓN", "level": 2, "is_total": False, "is_detail": True},
+            {"column": "PRIMA POR EMISIÓN PRIMARIA DE ACCIONES", "label": "PRIMA POR EMISIÓN PRIMARIA DE ACCIONES", "level": 2, "is_total": False, "is_detail": True},
+            {"column": "RESERVAS", "label": "RESERVAS", "level": 2, "is_total": False, "is_detail": True},
+            {"column": "OTROS RESULTADOS INTEGRALES", "label": "OTROS RESULTADOS INTEGRALES", "level": 2, "is_total": False, "is_detail": True},
+            {"column": "RESULTADOS ACUMULADOS", "label": "RESULTADOS ACUMULADOS", "level": 2, "is_total": False, "is_detail": True},
+            {"column": "RESULTADOS DEL EJERCICIO", "label": "RESULTADOS DEL EJERCICIO", "level": 2, "is_total": False, "is_detail": True},
+        ]
 
-    if indicators_data is None:
-        st.warning("No se encontro el archivo supercias_indicadores.pkl para mostrar esta seccion.")
-    else:
-        indicators_company_df = pd.DataFrame()
-        if "RUC" in indicators_data.columns:
-            indicators_company_df = indicators_data[indicators_data["RUC"] == str(ruc)].copy()
-        if indicators_company_df.empty and "NOMBRE" in indicators_data.columns:
-            indicators_company_df = indicators_data[indicators_data["NOMBRE"] == selected_company].copy()
+        balance_columns = [item["column"] for item in balance_structure]
+        balance_company_df = balance_data[balance_data["RUC"] == str(ruc)].copy()
+        if balance_company_df.empty:
+            balance_company_df = balance_data[balance_data["NOMBRE"] == selected_company].copy()
 
-        if indicators_company_df.empty:
-            st.warning("No se encontro informacion de indicadores para esta empresa.")
-        elif "AÑO" not in indicators_company_df.columns:
-            st.warning("El archivo de indicadores no contiene la columna AÑO.")
+        if balance_company_df.empty:
+            st.warning("No se encontro informacion de balance general para esta empresa.")
         else:
-            available_indicators = [col for col in indicator_list if col in indicators_company_df.columns]
-            missing_indicators = [col for col in indicator_list if col not in indicators_company_df.columns]
-            annual_indicators_df = (
-                indicators_company_df.groupby("AÑO", dropna=False)[available_indicators]
-                .mean(numeric_only=True)
-                .reindex([2021, 2022, 2023, 2024])
+            available_balance_cols = [col for col in balance_columns if col in balance_company_df.columns]
+            missing_balance_cols = [col for col in balance_columns if col not in balance_company_df.columns]
+            annual_balance_df = (
+                balance_company_df.groupby("AÑO", dropna=False)[available_balance_cols]
+                .sum(numeric_only=True)
+                .reindex([2023, 2024])
             )
 
-            indicator_rows = []
-            for indicator in indicator_list:
-                indicator_rows.append(
-                    {
-                        "Indicador": indicator,
-                        "2021": annual_indicators_df.loc[2021, indicator] if indicator in annual_indicators_df.columns else pd.NA,
-                        "2022": annual_indicators_df.loc[2022, indicator] if indicator in annual_indicators_df.columns else pd.NA,
-                        "2023": annual_indicators_df.loc[2023, indicator] if indicator in annual_indicators_df.columns else pd.NA,
-                        "2024": annual_indicators_df.loc[2024, indicator] if indicator in annual_indicators_df.columns else pd.NA,
-                    }
-                )
+            vertical_parent = {item["column"]: "ACTIVO" for item in balance_structure if "ACTIVO" in item["column"] and item["column"] != "PATRIMONIO"}
+            vertical_parent.update({item["column"]: "PASIVO" for item in balance_structure if "PASIVO" in item["column"]})
+            vertical_parent.update(
+                {
+                    "ACTIVO": "ACTIVO",
+                    "PASIVO": "PASIVO",
+                    "PATRIMONIO": "PATRIMONIO",
+                    "CAPITAL": "PATRIMONIO",
+                    "APORTES PARA FUTURA CAPITALIZACIÓN": "PATRIMONIO",
+                    "PRIMA POR EMISIÓN PRIMARIA DE ACCIONES": "PATRIMONIO",
+                    "RESERVAS": "PATRIMONIO",
+                    "OTROS RESULTADOS INTEGRALES": "PATRIMONIO",
+                    "RESULTADOS ACUMULADOS": "PATRIMONIO",
+                    "RESULTADOS DEL EJERCICIO": "PATRIMONIO",
+                }
+            )
 
-            indicators_table_df = pd.DataFrame(indicator_rows)
-            percent_indicators = {
-                "MARGEN BRUTO",
-                "MARGEN EBITDA",
-                "MARGEN DE UTILIDAD",
-                "ROA",
-                "ROE",
-                "ENDEUDAMIENTO",
+            balance_rows = []
+            rows_by_col = {}
+            for item in balance_structure:
+                col = item["column"]
+                value_2023 = annual_balance_df.loc[2023, col] if col in annual_balance_df.columns else pd.NA
+                value_2024 = annual_balance_df.loc[2024, col] if col in annual_balance_df.columns else pd.NA
+
+                var_abs = pd.NA
+                var_pct = pd.NA
+                vertical_pct = pd.NA
+                if pd.notna(value_2023) and pd.notna(value_2024):
+                    var_abs = value_2024 - value_2023
+                    var_pct = (var_abs / value_2023 * 100) if value_2023 != 0 else pd.NA
+                parent_col = vertical_parent.get(col)
+                if parent_col and parent_col in annual_balance_df.columns and pd.notna(value_2024):
+                    parent_value_2024 = annual_balance_df.loc[2024, parent_col]
+                    if pd.notna(parent_value_2024) and parent_value_2024 != 0:
+                        vertical_pct = (value_2024 / parent_value_2024) * 100
+
+                row = {
+                    "_column": col,
+                    "_label": item["label"],
+                    "_level": item.get("level", 0),
+                    "_is_total": item.get("is_total", False),
+                    "Cuenta": item["label"],
+                    "2023": value_2023,
+                    "2024": value_2024,
+                    "Variacion 2024/2023": var_abs,
+                    "Comparativo Horizontal": var_pct,
+                    "Comparativo Vertical": vertical_pct,
+                }
+                balance_rows.append(row)
+                rows_by_col[col] = row
+
+            if missing_balance_cols:
+                st.warning(f"Columnas de balance no encontradas: {', '.join(missing_balance_cols)}")
+
+            children_map = {
+                "ACTIVO": ["ACTIVO CORRIENTE", "ACTIVO NO CORRIENTE"],
+                "ACTIVO CORRIENTE": [
+                    "DISPONIBLE",
+                    "INVERSIONES",
+                    "CUENTAS POR COBRAR CLIENTES",
+                    "CUENTAS POR COBRAR RELACIONADAS",
+                    "PROVISIÓN INCOBRABLE Y DETERIORO",
+                    "INVENTARIO",
+                    "CRÉDITO TRIBUTARIO",
+                    "OTROS ACTIVOS CORRIENTES",
+                ],
+                "ACTIVO NO CORRIENTE": [
+                    "PROPIEDAD, PLANTA Y EQUIPO",
+                    "PROPIEDADES DE INVERSIÓN",
+                    "ACTIVOS BIOLÓGICOS",
+                    "ACTIVO INTANGIBLE",
+                    "ACTIVOS POR IMPUESTOS DIFERIDOS",
+                    "ACTIVOS FINANCIEROS NO CORRIENTES",
+                    "DERECHO DE USO POR ACTIVOS ARRENDADOS",
+                    "DOCUMENTOS Y CUENTAS POR COBRAR NO RELACIONADOS",
+                    "DOCUMENTOS Y CUENTAS POR COBRAR RELACIONADOS",
+                    "OTROS ACTIVOS NO CORRIENTES",
+                ],
+                "PASIVO": ["PASIVO CORRIENTE", "PASIVO NO CORRIENTE"],
+                "PASIVO CORRIENTE": [
+                    "CUENTAS POR PAGAR",
+                    "OBLIGACIONES FINACIERAS CORTO PLAZO",
+                    "IMPUESTOS POR PAGAR",
+                    "OTRAS CUENTAS POR PAGAR",
+                    "PROVISIONES",
+                    "OTROS PASIVOS CORRIENTES",
+                ],
+                "PASIVO NO CORRIENTE": [
+                    "OBLIGACIONES FINANCIERAS LARGO PLAZO",
+                    "ARRENDAMIENTO LARGO PLAZO",
+                    "PASIVO DIFERIDO",
+                    "BENEFICIOS EMPLEADOS LARGO PLAZO",
+                    "OTRAS CUENTAS POR PAGAR LARGO PLAZO",
+                    "OTROS PASIVOS NO CORRIENTES",
+                ],
+                "PATRIMONIO": [
+                    "CAPITAL",
+                    "APORTES PARA FUTURA CAPITALIZACIÓN",
+                    "PRIMA POR EMISIÓN PRIMARIA DE ACCIONES",
+                    "RESERVAS",
+                    "OTROS RESULTADOS INTEGRALES",
+                    "RESULTADOS ACUMULADOS",
+                    "RESULTADOS DEL EJERCICIO",
+                ],
             }
 
-            indicators_display_df = indicators_table_df.copy()
-            for year_col in ["2021", "2022", "2023", "2024"]:
-                indicators_display_df[year_col] = indicators_display_df.apply(
-                    lambda row: (
-                        f"{row[year_col] * 100:.2f}%"
-                        if row["Indicador"] in percent_indicators and pd.notna(row[year_col])
-                        else (f"{row[year_col]:,.2f}" if pd.notna(row[year_col]) else "-")
-                    ),
-                    axis=1,
-                )
+            show_level_1 = st.checkbox("Desagregar cuentas Nivel 1", value=False, key=f"bal_l1_{ruc}")
+            show_level_2 = st.checkbox("Desagregar cuentas Nivel 2", value=False, key=f"bal_l2_{ruc}")
+            show_level_1_effective = show_level_1 or show_level_2
 
-            indicator_groups = {
-                "INDICADORES DE RENTABILIDAD": [
-                    "MARGEN BRUTO",
-                    "MARGEN EBITDA",
-                    "MARGEN DE UTILIDAD",
-                    "ROE",
-                    "ROA",
-                ],
-                "INDICADORES DE ENDEUDAMIENTO": [
-                    "ENDEUDAMIENTO",
-                ],
-                "INDICADORES DE LIQUIDEZ": [
-                    "DÍAS DE INVENTARIO",
-                    "DÍAS DE COBRO",
-                    "DÍAS DE PAGO",
-                    "CICLO DE CONVERSIÓN DE EFECTIVO",
-                    "RAZÓN CORRIENTE",
-                    "PRUEBA ÁCIDA",
-                ],
-            }
+            visible_rows = []
 
-            display_map = indicators_display_df.set_index("Indicador").to_dict("index")
-            grouped_rows = []
-            for group_label, group_indicators in indicator_groups.items():
-                grouped_rows.append(
+            def append_node(node: str, depth: int) -> None:
+                row = rows_by_col.get(node)
+                if row is None:
+                    return
+
+                row_copy = row.copy()
+                if depth == 0:
+                    row_copy["Cuenta"] = f"= {row_copy['_label']}"
+                elif depth == 1:
+                    row_copy["Cuenta"] = f"   |- {row_copy['_label']}"
+                else:
+                    row_copy["Cuenta"] = f"      |--- {row_copy['_label']}"
+
+                visible_rows.append(row_copy)
+                if depth == 0 and show_level_1_effective:
+                    for child in children_map.get(node, []):
+                        append_node(child, depth + 1)
+                elif depth == 1 and show_level_2:
+                    for child in children_map.get(node, []):
+                        append_node(child, depth + 1)
+
+            for root in ["ACTIVO", "PASIVO", "PATRIMONIO"]:
+                append_node(root, 0)
+
+            visible_df = pd.DataFrame(visible_rows)
+            visible_total_rows = set(visible_df.index[visible_df["_is_total"]].tolist())
+            visible_level_map = {idx: int(level) for idx, level in visible_df["_level"].items()}
+            view_df = visible_df.drop(columns=["_column", "_label", "_level", "_is_total"])
+
+            styled_balance = (
+                view_df.style
+                .format(
                     {
-                        "_is_group": True,
-                        "Indicador": group_label,
-                        "2021": "",
-                        "2022": "",
-                        "2023": "",
-                        "2024": "",
-                    }
+                        "2023": "{:,.0f}",
+                        "2024": "{:,.0f}",
+                        "Variacion 2024/2023": "{:,.0f}",
+                        "Comparativo Horizontal": "{:.2f}%",
+                        "Comparativo Vertical": "{:.2f}%",
+                    },
+                    na_rep="-",
                 )
-                for indicator in group_indicators:
-                    row_values = display_map.get(
-                        indicator,
-                        {"2021": "-", "2022": "-", "2023": "-", "2024": "-"},
-                    )
-                    grouped_rows.append(
+                .apply(lambda row: style_balance_row(row, visible_total_rows, visible_level_map), axis=1)
+                .apply(lambda row: style_hierarchy_label(row, visible_level_map), axis=1, subset=["Cuenta"])
+            )
+
+            st.dataframe(styled_balance, width="stretch", hide_index=True)
+            balance_export_df = view_df.copy()
+            try:
+                balance_bytes = to_excel_bytes(balance_export_df, "Balance_General")
+                balance_file = f"analisis_balance_general_{safe_filename(selected_company)}.xlsx"
+                st.download_button(
+                    "Descargar Excel - Balance General",
+                    data=balance_bytes,
+                    file_name=balance_file,
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    key=f"download_bg_{safe_filename(selected_company)}",
+                )
+            except RuntimeError:
+                st.error("No se pudo generar Excel para Balance General (falta xlsxwriter/openpyxl).")
+
+    with tab_ind:
+        st.markdown("#### Indicadores Financieros Clave")
+        indicator_list = [
+            "MARGEN BRUTO",
+            "MARGEN EBITDA",
+            "MARGEN DE UTILIDAD",
+            "ROA",
+            "ROE",
+            "ENDEUDAMIENTO",
+            "DÍAS DE INVENTARIO",
+            "DÍAS DE COBRO",
+            "DÍAS DE PAGO",
+            "CICLO DE CONVERSIÓN DE EFECTIVO",
+            "RAZÓN CORRIENTE",
+            "PRUEBA ÁCIDA",
+        ]
+
+        if indicators_data is None:
+            st.warning("No se encontro el archivo supercias_indicadores.pkl para mostrar esta seccion.")
+        else:
+            indicators_company_df = pd.DataFrame()
+            if "RUC" in indicators_data.columns:
+                indicators_company_df = indicators_data[indicators_data["RUC"] == str(ruc)].copy()
+            if indicators_company_df.empty and "NOMBRE" in indicators_data.columns:
+                indicators_company_df = indicators_data[indicators_data["NOMBRE"] == selected_company].copy()
+
+            if indicators_company_df.empty:
+                st.warning("No se encontro informacion de indicadores para esta empresa.")
+            elif "AÑO" not in indicators_company_df.columns:
+                st.warning("El archivo de indicadores no contiene la columna AÑO.")
+            else:
+                available_indicators = [col for col in indicator_list if col in indicators_company_df.columns]
+                missing_indicators = [col for col in indicator_list if col not in indicators_company_df.columns]
+                annual_indicators_df = (
+                    indicators_company_df.groupby("AÑO", dropna=False)[available_indicators]
+                    .mean(numeric_only=True)
+                    .reindex([2021, 2022, 2023, 2024])
+                )
+
+                indicator_rows = []
+                for indicator in indicator_list:
+                    indicator_rows.append(
                         {
-                            "_is_group": False,
                             "Indicador": indicator,
-                            "2021": row_values["2021"],
-                            "2022": row_values["2022"],
-                            "2023": row_values["2023"],
-                            "2024": row_values["2024"],
+                            "2021": annual_indicators_df.loc[2021, indicator] if indicator in annual_indicators_df.columns else pd.NA,
+                            "2022": annual_indicators_df.loc[2022, indicator] if indicator in annual_indicators_df.columns else pd.NA,
+                            "2023": annual_indicators_df.loc[2023, indicator] if indicator in annual_indicators_df.columns else pd.NA,
+                            "2024": annual_indicators_df.loc[2024, indicator] if indicator in annual_indicators_df.columns else pd.NA,
                         }
                     )
 
-            indicators_grouped_df = pd.DataFrame(grouped_rows)
-            group_rows = set(indicators_grouped_df.index[indicators_grouped_df["_is_group"]].tolist())
-            indicators_view_df = indicators_grouped_df.drop(columns=["_is_group"])
+                indicators_table_df = pd.DataFrame(indicator_rows)
+                percent_indicators = {
+                    "MARGEN BRUTO",
+                    "MARGEN EBITDA",
+                    "MARGEN DE UTILIDAD",
+                    "ROA",
+                    "ROE",
+                    "ENDEUDAMIENTO",
+                }
 
-            def style_indicator_rows(row: pd.Series) -> list[str]:
-                if row.name in group_rows:
-                    return [
-                        "font-weight: 700; background-color: #eef2ff; border-top: 2px solid #c7d2fe; color: #1f2937;"
-                    ] * len(row)
-                return ["background-color: #ffffff;"] * len(row)
+                indicators_display_df = indicators_table_df.copy()
+                for year_col in ["2021", "2022", "2023", "2024"]:
+                    indicators_display_df[year_col] = indicators_display_df.apply(
+                        lambda row: (
+                            f"{row[year_col] * 100:.2f}%"
+                            if row["Indicador"] in percent_indicators and pd.notna(row[year_col])
+                            else (f"{row[year_col]:,.2f}" if pd.notna(row[year_col]) else "-")
+                        ),
+                        axis=1,
+                    )
 
-            def style_indicator_label(row: pd.Series) -> list[str]:
-                if row.name in group_rows:
-                    return ["letter-spacing: 0.02em;"]
-                return ["padding-left: 1.2rem; color: #374151;"]
+                indicator_groups = {
+                    "INDICADORES DE RENTABILIDAD": [
+                        "MARGEN BRUTO",
+                        "MARGEN EBITDA",
+                        "MARGEN DE UTILIDAD",
+                        "ROE",
+                        "ROA",
+                    ],
+                    "INDICADORES DE ENDEUDAMIENTO": [
+                        "ENDEUDAMIENTO",
+                    ],
+                    "INDICADORES DE LIQUIDEZ": [
+                        "DÍAS DE INVENTARIO",
+                        "DÍAS DE COBRO",
+                        "DÍAS DE PAGO",
+                        "CICLO DE CONVERSIÓN DE EFECTIVO",
+                        "RAZÓN CORRIENTE",
+                        "PRUEBA ÁCIDA",
+                    ],
+                }
 
-            styled_indicators = (
-                indicators_view_df.style
-                .apply(style_indicator_rows, axis=1)
-                .apply(style_indicator_label, axis=1, subset=["Indicador"])
-                .set_properties(subset=["2021", "2022", "2023", "2024"], **{"text-align": "right"})
-            )
-            st.dataframe(styled_indicators, width="stretch", hide_index=True)
+                display_map = indicators_display_df.set_index("Indicador").to_dict("index")
+                grouped_rows = []
+                for group_label, group_indicators in indicator_groups.items():
+                    grouped_rows.append(
+                        {
+                            "_is_group": True,
+                            "Indicador": group_label,
+                            "2021": "",
+                            "2022": "",
+                            "2023": "",
+                            "2024": "",
+                        }
+                    )
+                    for indicator in group_indicators:
+                        row_values = display_map.get(
+                            indicator,
+                            {"2021": "-", "2022": "-", "2023": "-", "2024": "-"},
+                        )
+                        grouped_rows.append(
+                            {
+                                "_is_group": False,
+                                "Indicador": indicator,
+                                "2021": row_values["2021"],
+                                "2022": row_values["2022"],
+                                "2023": row_values["2023"],
+                                "2024": row_values["2024"],
+                            }
+                        )
 
-            if missing_indicators:
-                st.warning(f"Indicadores no encontrados en el dataset: {', '.join(missing_indicators)}")
+                indicators_grouped_df = pd.DataFrame(grouped_rows)
+                group_rows = set(indicators_grouped_df.index[indicators_grouped_df["_is_group"]].tolist())
+                indicators_view_df = indicators_grouped_df.drop(columns=["_is_group"])
+
+                def style_indicator_rows(row: pd.Series) -> list[str]:
+                    if row.name in group_rows:
+                        return [
+                            "font-weight: 700; background-color: #eef2ff; border-top: 2px solid #c7d2fe; color: #1f2937;"
+                        ] * len(row)
+                    return ["background-color: #ffffff;"] * len(row)
+
+                def style_indicator_label(row: pd.Series) -> list[str]:
+                    if row.name in group_rows:
+                        return ["letter-spacing: 0.02em;"]
+                    return ["padding-left: 1.2rem; color: #374151;"]
+
+                styled_indicators = (
+                    indicators_view_df.style
+                    .apply(style_indicator_rows, axis=1)
+                    .apply(style_indicator_label, axis=1, subset=["Indicador"])
+                    .set_properties(subset=["2021", "2022", "2023", "2024"], **{"text-align": "right"})
+                )
+                st.dataframe(styled_indicators, width="stretch", hide_index=True)
+
+                if missing_indicators:
+                    st.warning(f"Indicadores no encontrados en el dataset: {', '.join(missing_indicators)}")
 else:
     st.info("Selecciona una empresa para visualizar su analisis financiero.")
