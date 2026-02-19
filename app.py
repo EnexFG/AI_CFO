@@ -374,7 +374,7 @@ if selected_company:
             {"column": "PASIVO", "label": "PASIVO", "level": 0, "is_total": True, "is_detail": False},
             {"column": "PASIVO CORRIENTE", "label": "PASIVO CORRIENTE", "level": 1, "is_total": False, "is_detail": True},
             {"column": "CUENTAS POR PAGAR", "label": "CUENTAS POR PAGAR", "level": 2, "is_total": False, "is_detail": True},
-            {"column": "OBLIGACIONES FINACIERAS CORTO PLAZO", "label": "OBLIGACIONES FINACIERAS CORTO PLAZO", "level": 2, "is_total": False, "is_detail": True},
+            {"column": "OBLIGACIONES FINANCIERAS CORTO PLAZO", "label": "OBLIGACIONES FINANCIERAS CORTO PLAZO", "level": 2, "is_total": False, "is_detail": True},
             {"column": "IMPUESTOS POR PAGAR", "label": "IMPUESTOS POR PAGAR", "level": 2, "is_total": False, "is_detail": True},
             {"column": "OTRAS CUENTAS POR PAGAR", "label": "OTRAS CUENTAS POR PAGAR", "level": 2, "is_total": False, "is_detail": True},
             {"column": "PROVISIONES", "label": "PROVISIONES", "level": 2, "is_total": False, "is_detail": True},
@@ -495,7 +495,7 @@ if selected_company:
                 "PASIVO": ["PASIVO CORRIENTE", "PASIVO NO CORRIENTE"],
                 "PASIVO CORRIENTE": [
                     "CUENTAS POR PAGAR",
-                    "OBLIGACIONES FINACIERAS CORTO PLAZO",
+                    "OBLIGACIONES FINANCIERAS CORTO PLAZO",
                     "IMPUESTOS POR PAGAR",
                     "OTRAS CUENTAS POR PAGAR",
                     "PROVISIONES",
