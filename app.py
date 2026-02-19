@@ -72,18 +72,20 @@ def load_financial_data(path_2021_2022: str, path_2023_2024: str) -> pd.DataFram
 
 
 @st.cache_data
-def load_balance_data(path_2023: str, path_2024: str) -> pd.DataFrame:
+def load_balance_data(path_2022: str, path_2023: str, path_2024: str) -> pd.DataFrame:
+    df_2022 = pd.read_pickle(path_2022).copy()
     df_2023 = pd.read_pickle(path_2023).copy()
     df_2024 = pd.read_pickle(path_2024).copy()
 
+    df_2022["AÑO"] = 2022
     df_2023["AÑO"] = 2023
     df_2024["AÑO"] = 2024
 
-    for df in [df_2023, df_2024]:
+    for df in [df_2022, df_2023, df_2024]:
         df["NOMBRE"] = df["NOMBRE"].astype(str).str.strip()
         df["RUC"] = df["RUC"].astype(str).str.strip()
 
-    return pd.concat([df_2023, df_2024], ignore_index=True)
+    return pd.concat([df_2022, df_2023, df_2024], ignore_index=True)
 
 
 @st.cache_data
@@ -180,7 +182,7 @@ with logo_col:
         )
 
 data = load_financial_data("supercias_resultados_2021_2022.pkl", "supercias_resultados_2023_2024.pkl")
-balance_data = load_balance_data("supercias_balances_2023.pkl", "supercias_balances_2024.pkl")
+balance_data = load_balance_data("supercias_balances_2022.pkl", "supercias_balances_2023.pkl", "supercias_balances_2024.pkl")
 indicators_data = None
 try:
     indicators_data = load_indicators_data("supercias_indicadores.pkl")
@@ -407,7 +409,7 @@ if selected_company:
             annual_balance_df = (
                 balance_company_df.groupby("AÑO", dropna=False)[available_balance_cols]
                 .sum(numeric_only=True)
-                .reindex([2023, 2024])
+                .reindex([2022, 2023, 2024])
             )
 
             vertical_parent = {item["column"]: "ACTIVO" for item in balance_structure if "ACTIVO" in item["column"] and item["column"] != "PATRIMONIO"}
@@ -431,6 +433,7 @@ if selected_company:
             rows_by_col = {}
             for item in balance_structure:
                 col = item["column"]
+                value_2022 = annual_balance_df.loc[2022, col] if col in annual_balance_df.columns else pd.NA
                 value_2023 = annual_balance_df.loc[2023, col] if col in annual_balance_df.columns else pd.NA
                 value_2024 = annual_balance_df.loc[2024, col] if col in annual_balance_df.columns else pd.NA
 
@@ -452,6 +455,7 @@ if selected_company:
                     "_level": item.get("level", 0),
                     "_is_total": item.get("is_total", False),
                     "Cuenta": item["label"],
+                    "2022": value_2022,
                     "2023": value_2023,
                     "2024": value_2024,
                     "Variacion 2024/2023": var_abs,
@@ -555,6 +559,7 @@ if selected_company:
                 view_df.style
                 .format(
                     {
+                        "2022": "{:,.0f}",
                         "2023": "{:,.0f}",
                         "2024": "{:,.0f}",
                         "Variacion 2024/2023": "{:,.0f}",
