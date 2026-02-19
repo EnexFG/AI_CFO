@@ -755,7 +755,7 @@ if selected_company:
         if graph_1_df.dropna(how="all").empty:
             st.warning("No hay datos suficientes para el Grafico 1.")
         else:
-            st.bar_chart(graph_1_df, height=320)
+            st.bar_chart(graph_1_df, height=320, stack=False)
 
         st.markdown("**Gráfico 2: Evolución de Activo, Pasivo y Patrimonio (Barras apiladas)**")
         balance_company_df_graph = balance_data[balance_data["RUC"] == str(ruc)].copy()
