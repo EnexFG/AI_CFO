@@ -784,7 +784,7 @@ if selected_company:
             )
             st.altair_chart(chart_1, use_container_width=True)
 
-        st.markdown("**Gráfico 2: Evolución de Activo, Pasivo y Patrimonio (Barras apiladas)**")
+        st.markdown("**Gráfico 2: Evolución del Balance**")
         balance_company_df_graph = balance_data[balance_data["RUC"] == str(ruc)].copy()
         if balance_company_df_graph.empty:
             balance_company_df_graph = balance_data[balance_data["NOMBRE"] == selected_company].copy()
