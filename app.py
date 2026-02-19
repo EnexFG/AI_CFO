@@ -169,7 +169,7 @@ balance_data = load_balance_data("supercias_balances_2023.pkl", "supercias_balan
 
 statement_structure = [
     {"column": "INGRESOS", "label": "INGRESOS", "sign": "", "is_total": False, "is_detail": False},
-    {"column": "COSTO_VENTAS", "label": "COSTO_VENTAS", "sign": "(-)", "is_total": False, "is_detail": False},
+    {"column": "COSTO DE VENTAS", "label": "COSTO DE VENTAS", "sign": "(-)", "is_total": False, "is_detail": False},
     {"column": "COSTO DE DISTRIBUCIÓN", "label": "COSTO DE DISTRIBUCIÓN", "sign": "(-)", "is_total": False, "is_detail": False},
     {"column": "CONTRIBUCIÓN MARGINAL", "label": "CONTRIBUCIÓN MARGINAL", "sign": "=", "is_total": True, "is_detail": False},
     {"column": "GASTO OPERACIONAL", "label": "GASTO OPERACIONAL", "sign": "(-)", "is_total": False, "is_detail": False},
