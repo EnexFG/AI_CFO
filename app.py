@@ -61,8 +61,10 @@ def render_login_gate() -> None:
 
 
 @st.cache_data
-def load_financial_data(path: str) -> pd.DataFrame:
-    df = pd.read_pickle(path).copy()
+def load_financial_data(path_2021_2022: str, path_2023_2024: str) -> pd.DataFrame:
+    df_2021_2022 = pd.read_pickle(path_2021_2022).copy()
+    df_2023_2024 = pd.read_pickle(path_2023_2024).copy()
+    df = pd.concat([df_2021_2022, df_2023_2024], ignore_index=True)
     df["AÑO"] = pd.to_numeric(df["AÑO"], errors="coerce").astype("Int64")
     df["NOMBRE"] = df["NOMBRE"].astype(str).str.strip()
     return df
@@ -81,6 +83,18 @@ def load_balance_data(path_2023: str, path_2024: str) -> pd.DataFrame:
         df["RUC"] = df["RUC"].astype(str).str.strip()
 
     return pd.concat([df_2023, df_2024], ignore_index=True)
+
+
+@st.cache_data
+def load_indicators_data(path: str) -> pd.DataFrame:
+    df = pd.read_pickle(path).copy()
+    if "AÑO" in df.columns:
+        df["AÑO"] = pd.to_numeric(df["AÑO"], errors="coerce").astype("Int64")
+    if "NOMBRE" in df.columns:
+        df["NOMBRE"] = df["NOMBRE"].astype(str).str.strip()
+    if "RUC" in df.columns:
+        df["RUC"] = df["RUC"].astype(str).str.strip()
+    return df
 
 
 def style_income_statement_row(row: pd.Series, total_rows: set[int], detail_rows: set[int]) -> list[str]:
@@ -164,8 +178,13 @@ with logo_col:
             unsafe_allow_html=True,
         )
 
-data = load_financial_data("supercias_resultados.pkl")
+data = load_financial_data("supercias_resultados_2021_2022.pkl", "supercias_resultados_2023_2024.pkl")
 balance_data = load_balance_data("supercias_balances_2023.pkl", "supercias_balances_2024.pkl")
+indicators_data = None
+try:
+    indicators_data = load_indicators_data("supercias_indicadores.pkl")
+except FileNotFoundError:
+    indicators_data = None
 
 statement_structure = [
     {"column": "INGRESOS", "label": "INGRESOS", "sign": "", "is_total": False, "is_detail": False},
@@ -184,6 +203,16 @@ statement_structure = [
     {"column": "OTROS GASTOS", "label": "OTROS GASTOS", "sign": "->", "is_total": False, "is_detail": True},
     {"column": "UTILIDAD OPERACIONAL", "label": "UTILIDAD OPERACIONAL", "sign": "=", "is_total": True, "is_detail": False},
     {"column": "GASTOS ADMINISTRATIVOS", "label": "GASTOS ADMINISTRATIVOS", "sign": "(-)", "is_total": False, "is_detail": False},
+    {"column": "GASTO DE PERSONAL ADMINISTRATIVO", "label": "GASTO DE PERSONAL ADMINISTRATIVO", "sign": "->", "is_total": False, "is_detail": True},
+    {"column": "GASTO DE SERVICIOS PROFESIONALES ADMINISTRATIVOS", "label": "GASTO DE SERVICIOS PROFESIONALES ADMINISTRATIVOS", "sign": "->", "is_total": False, "is_detail": True},
+    {"column": "GASTO DE ARRENDAMIENTO ADMINISTRATIVO", "label": "GASTO DE ARRENDAMIENTO ADMINISTRATIVO", "sign": "->", "is_total": False, "is_detail": True},
+    {"column": "IMPUESTOS, TASAS Y CONTRIBUCIONES", "label": "IMPUESTOS, TASAS Y CONTRIBUCIONES", "sign": "->", "is_total": False, "is_detail": True},
+    {"column": "GASTO DE SERVICIOS BASICOS ADMINISTRATIVOS", "label": "GASTO DE SERVICIOS BASICOS ADMINISTRATIVOS", "sign": "->", "is_total": False, "is_detail": True},
+    {"column": "GASTO DE MANTENIMIENTO ADMINISTRATIVO", "label": "GASTO DE MANTENIMIENTO ADMINISTRATIVO", "sign": "->", "is_total": False, "is_detail": True},
+    {"column": "GASTO DE TRANSPORTE Y GESTIÓN ADMINISTRATIVO", "label": "GASTO DE TRANSPORTE Y GESTIÓN ADMINISTRATIVO", "sign": "->", "is_total": False, "is_detail": True},
+    {"column": "GASTO DE SEGUROS ADMINISTRATIVOS", "label": "GASTO DE SEGUROS ADMINISTRATIVOS", "sign": "->", "is_total": False, "is_detail": True},
+    {"column": "GASTO DE PUBLICIDAD ADMINISTRATIVO", "label": "GASTO DE PUBLICIDAD ADMINISTRATIVO", "sign": "->", "is_total": False, "is_detail": True},
+    {"column": "OTROS GASTOS ADMINISTRATIVOS", "label": "OTROS GASTOS ADMINISTRATIVOS", "sign": "->", "is_total": False, "is_detail": True},
     {"column": "EBITDA", "label": "EBITDA", "sign": "=", "is_total": True, "is_detail": False},
     {"column": "DEPRECIACION", "label": "DEPRECIACION", "sign": "(+)", "is_total": False, "is_detail": False},
     {"column": "AMORTIZACION", "label": "AMORTIZACION", "sign": "(+)", "is_total": False, "is_detail": False},
@@ -541,5 +570,70 @@ if selected_company:
             )
         except RuntimeError:
             st.error("No se pudo generar Excel para Balance General (falta xlsxwriter/openpyxl).")
+
+    st.markdown("#### Indicadores Financieros Clave")
+    indicator_list = [
+        "MARGEN BRUTO",
+        "MARGEN EBITDA",
+        "MARGEN DE UTILIDAD",
+        "ROA",
+        "ROE",
+        "ENDEUDAMIENTO",
+        "DÍAS DE INVENTARIO",
+        "DÍAS DE COBRO",
+        "DÍAS DE PAGO",
+        "CICLO DE CONVERSIÓN DE EFECTIVO",
+        "RAZÓN CORRIENTE",
+        "PRUEBA ÁCIDA",
+    ]
+
+    if indicators_data is None:
+        st.warning("No se encontro el archivo supercias_indicadores.pkl para mostrar esta seccion.")
+    else:
+        indicators_company_df = pd.DataFrame()
+        if "RUC" in indicators_data.columns:
+            indicators_company_df = indicators_data[indicators_data["RUC"] == str(ruc)].copy()
+        if indicators_company_df.empty and "NOMBRE" in indicators_data.columns:
+            indicators_company_df = indicators_data[indicators_data["NOMBRE"] == selected_company].copy()
+
+        if indicators_company_df.empty:
+            st.warning("No se encontro informacion de indicadores para esta empresa.")
+        elif "AÑO" not in indicators_company_df.columns:
+            st.warning("El archivo de indicadores no contiene la columna AÑO.")
+        else:
+            available_indicators = [col for col in indicator_list if col in indicators_company_df.columns]
+            missing_indicators = [col for col in indicator_list if col not in indicators_company_df.columns]
+            annual_indicators_df = (
+                indicators_company_df.groupby("AÑO", dropna=False)[available_indicators]
+                .mean(numeric_only=True)
+                .reindex([2021, 2022, 2023, 2024])
+            )
+
+            indicator_rows = []
+            for indicator in indicator_list:
+                indicator_rows.append(
+                    {
+                        "Indicador": indicator,
+                        "2021": annual_indicators_df.loc[2021, indicator] if indicator in annual_indicators_df.columns else pd.NA,
+                        "2022": annual_indicators_df.loc[2022, indicator] if indicator in annual_indicators_df.columns else pd.NA,
+                        "2023": annual_indicators_df.loc[2023, indicator] if indicator in annual_indicators_df.columns else pd.NA,
+                        "2024": annual_indicators_df.loc[2024, indicator] if indicator in annual_indicators_df.columns else pd.NA,
+                    }
+                )
+
+            indicators_table_df = pd.DataFrame(indicator_rows)
+            styled_indicators = indicators_table_df.style.format(
+                {
+                    "2021": "{:,.2f}",
+                    "2022": "{:,.2f}",
+                    "2023": "{:,.2f}",
+                    "2024": "{:,.2f}",
+                },
+                na_rep="-",
+            )
+            st.dataframe(styled_indicators, width="stretch", hide_index=True)
+
+            if missing_indicators:
+                st.warning(f"Indicadores no encontrados en el dataset: {', '.join(missing_indicators)}")
 else:
     st.info("Selecciona una empresa para visualizar su analisis financiero.")
