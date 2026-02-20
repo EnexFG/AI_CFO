@@ -794,39 +794,54 @@ if selected_company:
         if balance_company_df_graph.empty:
             balance_company_df_graph = balance_data[balance_data["NOMBRE"] == selected_company].copy()
 
-        graph_2_columns = ["ACTIVO", "PASIVO", "PATRIMONIO"]
-        available_graph_2_cols = [col for col in graph_2_columns if col in balance_company_df_graph.columns]
-        if balance_company_df_graph.empty or not available_graph_2_cols:
+        graph_2_required_cols = ["ACTIVO", "PASIVO", "PATRIMONIO"]
+        missing_graph_2_cols = [col for col in graph_2_required_cols if col not in balance_company_df_graph.columns]
+        if balance_company_df_graph.empty or missing_graph_2_cols:
             st.warning("No hay datos suficientes para el Grafico 2.")
         else:
             annual_balance_graph_df = (
-                balance_company_df_graph.groupby("AÑO", dropna=False)[available_graph_2_cols]
+                balance_company_df_graph.groupby("AÑO", dropna=False)[graph_2_required_cols]
                 .sum(numeric_only=True)
                 .sort_index()
                 .reset_index()
             )
-            graph_2_long = annual_balance_graph_df.melt(
+
+            graph_2_bars_long = annual_balance_graph_df.melt(
                 id_vars="AÑO",
-                value_vars=available_graph_2_cols,
+                value_vars=["PASIVO", "PATRIMONIO"],
                 var_name="Cuenta",
                 value_name="Valor",
             )
-            graph_2_long = graph_2_long.dropna(subset=["Valor"])
+            graph_2_bars_long = graph_2_bars_long.dropna(subset=["Valor"])
+            graph_2_activo = annual_balance_graph_df[["AÑO", "ACTIVO"]].dropna(subset=["ACTIVO"])
 
-            if graph_2_long.empty:
+            if graph_2_bars_long.empty or graph_2_activo.empty:
                 st.warning("No hay datos suficientes para el Grafico 2.")
             else:
-                chart_2 = (
-                    alt.Chart(graph_2_long)
+                chart_2_bars = (
+                    alt.Chart(graph_2_bars_long)
                     .mark_bar()
                     .encode(
                         x=alt.X("AÑO:O", title="AÑO"),
                         y=alt.Y("Valor:Q", title="Valor"),
-                        color=alt.Color("Cuenta:N", title="Cuenta"),
+                        color=alt.Color(
+                            "Cuenta:N",
+                            title="Cuenta",
+                            scale=alt.Scale(domain=["PASIVO", "PATRIMONIO"]),
+                        ),
                         tooltip=["AÑO:O", "Cuenta:N", alt.Tooltip("Valor:Q", format=",.0f")],
                     )
-                    .properties(height=320)
                 )
+                chart_2_activo = (
+                    alt.Chart(graph_2_activo)
+                    .mark_line(color="#111827", strokeWidth=3, point=True)
+                    .encode(
+                        x=alt.X("AÑO:O", title="AÑO"),
+                        y=alt.Y("ACTIVO:Q", title="Valor"),
+                        tooltip=["AÑO:O", alt.Tooltip("ACTIVO:Q", format=",.0f")],
+                    )
+                )
+                chart_2 = (chart_2_bars + chart_2_activo).properties(height=320)
                 st.altair_chart(chart_2, use_container_width=True)
 
         st.markdown("**Gráfico 3: Evolución de ROE y ROA**")
