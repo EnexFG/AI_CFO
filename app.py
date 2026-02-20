@@ -820,13 +820,33 @@ if selected_company:
             if graph_2_bars_long.empty or graph_2_activo.empty:
                 st.warning("No hay datos suficientes para el Grafico 2.")
             else:
+                st.markdown(
+                    """
+                    <div style="display:flex; gap:1.2rem; align-items:center; margin: 0.2rem 0 0.6rem 0;">
+                        <span style="display:inline-flex; align-items:center; gap:0.45rem;">
+                            <span style="width:14px; height:14px; border:2px solid #111827; background:transparent; display:inline-block;"></span>
+                            <span style="font-size:0.92rem; color:#111827;">ACTIVO</span>
+                        </span>
+                        <span style="display:inline-flex; align-items:center; gap:0.45rem;">
+                            <span style="width:14px; height:14px; background:#60a5fa; display:inline-block;"></span>
+                            <span style="font-size:0.92rem; color:#111827;">PASIVO</span>
+                        </span>
+                        <span style="display:inline-flex; align-items:center; gap:0.45rem;">
+                            <span style="width:14px; height:14px; background:#34d399; display:inline-block;"></span>
+                            <span style="font-size:0.92rem; color:#111827;">PATRIMONIO</span>
+                        </span>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
                 graph_2_color = alt.Color(
                     "Cuenta:N",
                     title="Cuenta",
                     scale=alt.Scale(
-                        domain=["PASIVO", "PATRIMONIO", "ACTIVO"],
-                        range=["#60a5fa", "#34d399", "#111827"],
+                        domain=["PASIVO", "PATRIMONIO"],
+                        range=["#60a5fa", "#34d399"],
                     ),
+                    legend=None,
                 )
                 chart_2_bars = (
                     alt.Chart(graph_2_bars_long)
@@ -844,7 +864,7 @@ if selected_company:
                     .encode(
                         x=alt.X("AÑO:O", title="AÑO"),
                         y=alt.Y("Valor:Q", title="Valor"),
-                        color=graph_2_color,
+                        color=alt.value("#111827"),
                         tooltip=["AÑO:O", "Cuenta:N", alt.Tooltip("Valor:Q", format=",.0f")],
                     )
                 )
