@@ -813,9 +813,7 @@ if selected_company:
                 value_name="Valor",
             )
             graph_2_bars_long = graph_2_bars_long.dropna(subset=["Valor"])
-            graph_2_activo = annual_balance_graph_df[["AÑO", "ACTIVO"]].rename(columns={"ACTIVO": "Valor"})
-            graph_2_activo["Cuenta"] = "ACTIVO"
-            graph_2_activo = graph_2_activo.dropna(subset=["Valor"])
+            graph_2_activo = annual_balance_graph_df[["AÑO", "ACTIVO", "PASIVO", "PATRIMONIO"]].dropna(subset=["ACTIVO"])
 
             if graph_2_bars_long.empty or graph_2_activo.empty:
                 st.warning("No hay datos suficientes para el Grafico 2.")
@@ -863,9 +861,14 @@ if selected_company:
                     .mark_bar(fillOpacity=0, stroke="#111827", strokeWidth=2)
                     .encode(
                         x=alt.X("AÑO:O", title="AÑO"),
-                        y=alt.Y("Valor:Q", title="Valor"),
+                        y=alt.Y("ACTIVO:Q", title="Valor"),
                         color=alt.value("#111827"),
-                        tooltip=["AÑO:O", "Cuenta:N", alt.Tooltip("Valor:Q", format=",.0f")],
+                        tooltip=[
+                            "AÑO:O",
+                            alt.Tooltip("ACTIVO:Q", title="ACTIVO", format=",.0f"),
+                            alt.Tooltip("PASIVO:Q", title="PASIVO", format=",.0f"),
+                            alt.Tooltip("PATRIMONIO:Q", title="PATRIMONIO", format=",.0f"),
+                        ],
                     )
                 )
                 chart_2 = (chart_2_bars + chart_2_activo).properties(height=320)
