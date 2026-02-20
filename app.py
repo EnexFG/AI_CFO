@@ -813,32 +813,39 @@ if selected_company:
                 value_name="Valor",
             )
             graph_2_bars_long = graph_2_bars_long.dropna(subset=["Valor"])
-            graph_2_activo = annual_balance_graph_df[["AÑO", "ACTIVO"]].dropna(subset=["ACTIVO"])
+            graph_2_activo = annual_balance_graph_df[["AÑO", "ACTIVO"]].rename(columns={"ACTIVO": "Valor"})
+            graph_2_activo["Cuenta"] = "ACTIVO"
+            graph_2_activo = graph_2_activo.dropna(subset=["Valor"])
 
             if graph_2_bars_long.empty or graph_2_activo.empty:
                 st.warning("No hay datos suficientes para el Grafico 2.")
             else:
+                graph_2_color = alt.Color(
+                    "Cuenta:N",
+                    title="Cuenta",
+                    scale=alt.Scale(
+                        domain=["PASIVO", "PATRIMONIO", "ACTIVO"],
+                        range=["#60a5fa", "#34d399", "#111827"],
+                    ),
+                )
                 chart_2_bars = (
                     alt.Chart(graph_2_bars_long)
                     .mark_bar()
                     .encode(
                         x=alt.X("AÑO:O", title="AÑO"),
                         y=alt.Y("Valor:Q", title="Valor"),
-                        color=alt.Color(
-                            "Cuenta:N",
-                            title="Cuenta",
-                            scale=alt.Scale(domain=["PASIVO", "PATRIMONIO"]),
-                        ),
+                        color=graph_2_color,
                         tooltip=["AÑO:O", "Cuenta:N", alt.Tooltip("Valor:Q", format=",.0f")],
                     )
                 )
                 chart_2_activo = (
                     alt.Chart(graph_2_activo)
-                    .mark_bar(color="#111827", fillOpacity=0, stroke="#111827", strokeWidth=2)
+                    .mark_bar(fillOpacity=0, stroke="#111827", strokeWidth=2)
                     .encode(
                         x=alt.X("AÑO:O", title="AÑO"),
-                        y=alt.Y("ACTIVO:Q", title="Valor"),
-                        tooltip=["AÑO:O", alt.Tooltip("ACTIVO:Q", format=",.0f")],
+                        y=alt.Y("Valor:Q", title="Valor"),
+                        color=graph_2_color,
+                        tooltip=["AÑO:O", "Cuenta:N", alt.Tooltip("Valor:Q", format=",.0f")],
                     )
                 )
                 chart_2 = (chart_2_bars + chart_2_activo).properties(height=320)
