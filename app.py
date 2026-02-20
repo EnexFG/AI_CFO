@@ -834,7 +834,7 @@ if selected_company:
                 )
                 chart_2_activo = (
                     alt.Chart(graph_2_activo)
-                    .mark_line(color="#111827", strokeWidth=3, point=True)
+                    .mark_bar(color="#111827", fillOpacity=0, stroke="#111827", strokeWidth=2)
                     .encode(
                         x=alt.X("AÑO:O", title="AÑO"),
                         y=alt.Y("ACTIVO:Q", title="Valor"),
