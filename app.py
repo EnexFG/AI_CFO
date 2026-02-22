@@ -213,8 +213,8 @@ def score_label(score: float | None) -> str:
     if score >= 60:
         return "estable"
     if score >= 45:
-        return "en observacion"
-    return "debil"
+        return "en observación"
+    return "débil"
 
 
 render_login_gate()
@@ -740,11 +740,11 @@ if selected_company:
                 def add_metric(block: str, name: str, value_2024, base_score: float | None, trend_score: float = 0.0, value_type: str = "ratio"):
                     final_score = clamp_score(base_score + trend_score) if base_score is not None else None
                     if pd.isna(value_2024):
-                        value_text = "n.d."
+                        value_text = "N/D"
                     elif value_type == "percent":
                         value_text = f"{float(value_2024) * 100:.2f}%"
                     elif value_type == "days":
-                        value_text = f"{float(value_2024):,.1f} dias"
+                        value_text = f"{float(value_2024):,.1f} días"
                     else:
                         value_text = f"{float(value_2024):,.2f}"
                     summary_metrics[block].append(
@@ -808,7 +808,7 @@ if selected_company:
                 )
                 add_metric(
                     "Liquidez",
-                    "Razon corriente",
+                    "Razón corriente",
                     razon_corriente_2024,
                     score_high_is_better(razon_corriente_2024, 1.50, 1.10),
                     trend_adjustment(razon_corriente_2022, razon_corriente_2024, True, 0.05),
@@ -816,7 +816,7 @@ if selected_company:
                 )
                 add_metric(
                     "Liquidez",
-                    "Prueba acida",
+                    "Prueba ácida",
                     prueba_acida_2024,
                     score_high_is_better(prueba_acida_2024, 1.00, 0.70),
                     trend_adjustment(prueba_acida_2022, prueba_acida_2024, True, 0.05),
@@ -824,7 +824,7 @@ if selected_company:
                 )
                 add_metric(
                     "Liquidez",
-                    "Ciclo de conversion de efectivo",
+                    "Ciclo de conversión de efectivo",
                     ccc_2024,
                     score_low_is_better(ccc_2024, 30.0, 60.0),
                     trend_adjustment(ccc_2022, ccc_2024, False, 2.0),
@@ -861,22 +861,70 @@ if selected_company:
                     }
                     priority_map = {
                         "Rentabilidad": "Prioridad: reforzar margen operativo y disciplina de costos para sostener la rentabilidad.",
-                        "Estructura": "Prioridad: optimizar la estructura de financiamiento y reducir presion de pasivos.",
-                        "Liquidez": "Prioridad: mejorar capital de trabajo (cobranza, inventario y gestion de pagos).",
+                        "Estructura": "Prioridad: optimizar la estructura de financiamiento y reducir presión de pasivos.",
+                        "Liquidez": "Prioridad: mejorar capital de trabajo (cobranza, inventario y gestión de pagos).",
                     }
 
-                    st.markdown("##### Resumen Ejecutivo Automatico")
+                    if total_score >= 75:
+                        status_bg, status_border, status_text = "#dcfce7", "#86efac", "#14532d"
+                    elif total_score >= 60:
+                        status_bg, status_border, status_text = "#dbeafe", "#93c5fd", "#1e3a8a"
+                    elif total_score >= 45:
+                        status_bg, status_border, status_text = "#fef3c7", "#fcd34d", "#78350f"
+                    else:
+                        status_bg, status_border, status_text = "#fee2e2", "#fca5a5", "#7f1d1d"
+
                     st.markdown(
-                        (
-                            f"La empresa muestra un perfil **{score_label(total_score)}** con fortaleza en "
-                            f"**{block_names[best_block]}** ({best_metric['name']}: {best_metric['value_text']}).\n\n"
-                            f"El principal foco de riesgo esta en **{block_names[worst_block]}** "
-                            f"({worst_metric['name']}: {worst_metric['value_text']}).\n\n"
-                            f"{priority_map[worst_block]}"
-                        )
+                        f"""
+                        <div style="border:1px solid #c7d2fe; border-radius:14px; padding:14px 16px; margin:0.2rem 0 0.8rem 0; background:linear-gradient(180deg,#f8faff 0%,#ffffff 100%);">
+                            <div style="display:flex; justify-content:space-between; align-items:center; gap:0.8rem; flex-wrap:wrap;">
+                                <div style="font-size:1.05rem; font-weight:700; color:#111827;">Resumen Ejecutivo Automático</div>
+                                <div style="display:flex; align-items:center; gap:0.5rem;">
+                                    <span style="padding:0.28rem 0.6rem; border-radius:999px; background:#eef2ff; color:#3730a3; font-size:0.85rem; font-weight:600;">
+                                        Score total: {total_score:.1f}/100
+                                    </span>
+                                    <span style="padding:0.28rem 0.6rem; border-radius:999px; background:{status_bg}; border:1px solid {status_border}; color:{status_text}; font-size:0.85rem; font-weight:700;">
+                                        {score_label(total_score).capitalize()}
+                                    </span>
+                                </div>
+                            </div>
+                            <div style="margin-top:0.75rem; color:#1f2937; line-height:1.55; font-size:0.95rem;">
+                                <div><strong>Fortaleza:</strong> {block_names[best_block].capitalize()} ({best_metric['name']}: {best_metric['value_text']}).</div>
+                                <div style="margin-top:0.3rem;"><strong>Foco de riesgo:</strong> {block_names[worst_block].capitalize()} ({worst_metric['name']}: {worst_metric['value_text']}).</div>
+                                <div style="margin-top:0.3rem;"><strong>Recomendación:</strong> {priority_map[worst_block].replace("Prioridad: ", "")}</div>
+                            </div>
+                        </div>
+                        """,
+                        unsafe_allow_html=True,
                     )
+
+                    score_cols = st.columns(3)
+                    for idx, block in enumerate(["Rentabilidad", "Estructura", "Liquidez"]):
+                        block_score = block_scores.get(block)
+                        block_score_text = f"{block_score:.1f}/100" if block_score is not None else "N/D"
+                        if block_score is None:
+                            block_style = ("#f3f4f6", "#d1d5db", "#374151")
+                        elif block_score >= 75:
+                            block_style = ("#dcfce7", "#86efac", "#14532d")
+                        elif block_score >= 60:
+                            block_style = ("#dbeafe", "#93c5fd", "#1e3a8a")
+                        elif block_score >= 45:
+                            block_style = ("#fef3c7", "#fcd34d", "#78350f")
+                        else:
+                            block_style = ("#fee2e2", "#fca5a5", "#7f1d1d")
+
+                        with score_cols[idx]:
+                            st.markdown(
+                                f"""
+                                <div style="border:1px solid {block_style[1]}; background:{block_style[0]}; border-radius:10px; padding:9px 10px;">
+                                    <div style="font-size:0.82rem; color:#374151; font-weight:600;">{block}</div>
+                                    <div style="font-size:1.05rem; color:{block_style[2]}; font-weight:700; margin-top:0.1rem;">{block_score_text}</div>
+                                </div>
+                                """,
+                                unsafe_allow_html=True,
+                            )
                 else:
-                    st.info("No hay datos suficientes para construir el resumen automatico de indicadores.")
+                    st.info("No hay datos suficientes para construir el resumen automático de indicadores.")
 
                 indicator_rows = []
                 for indicator in indicator_list:
