@@ -864,15 +864,6 @@ if selected_company:
                         "Estructura": "Prioridad: optimizar la estructura de financiamiento y reducir presión de pasivos.",
                         "Liquidez": "Prioridad: mejorar capital de trabajo (cobranza, inventario y gestión de pagos).",
                     }
-                    narrative_intro = (
-                        f"La empresa muestra un perfil **{score_label(total_score)}** con fortaleza en "
-                        f"**{block_names[best_block]}** ({best_metric['name']}: {best_metric['value_text']})."
-                    )
-                    narrative_risk = (
-                        f"El principal foco de riesgo está en **{block_names[worst_block]}** "
-                        f"({worst_metric['name']}: {worst_metric['value_text']})."
-                    )
-                    narrative_action = priority_map[worst_block]
 
                     if total_score >= 75:
                         status_bg, status_border, status_text = "#dcfce7", "#86efac", "#14532d"
@@ -932,17 +923,6 @@ if selected_company:
                                 """,
                                 unsafe_allow_html=True,
                             )
-
-                    st.markdown(
-                        f"""
-                        <div style="border-left:4px solid #4f46e5; background:#f8faff; padding:10px 12px; border-radius:8px; margin-top:0.5rem; color:#1f2937; line-height:1.6;">
-                            <div>{narrative_intro}</div>
-                            <div style="margin-top:0.25rem;">{narrative_risk}</div>
-                            <div style="margin-top:0.25rem;">{narrative_action}</div>
-                        </div>
-                        """,
-                        unsafe_allow_html=True,
-                    )
                 else:
                     st.info("No hay datos suficientes para construir el resumen automático de indicadores.")
 
