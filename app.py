@@ -864,6 +864,16 @@ if selected_company:
                         "Estructura": "Prioridad: optimizar la estructura de financiamiento y reducir presión de pasivos.",
                         "Liquidez": "Prioridad: mejorar capital de trabajo (cobranza, inventario y gestión de pagos).",
                     }
+                    narrative_1 = (
+                        f"En <strong>{selected_company}</strong>, el análisis automático ubica el desempeño en nivel "
+                        f"<strong>{score_label(total_score)}</strong>, con fortaleza relativa en "
+                        f"<strong>{block_names[best_block]}</strong> ({best_metric['name']}: {best_metric['value_text']})."
+                    )
+                    narrative_2 = (
+                        f"La principal señal de riesgo se concentra en <strong>{block_names[worst_block]}</strong>, "
+                        f"especialmente en {worst_metric['name']} ({worst_metric['value_text']})."
+                    )
+                    narrative_3 = priority_map[worst_block].replace("Prioridad: ", "En el corto plazo, se recomienda ")
 
                     if total_score >= 75:
                         status_bg, status_border, status_text = "#dcfce7", "#86efac", "#14532d"
@@ -889,9 +899,9 @@ if selected_company:
                                 </div>
                             </div>
                             <div style="margin-top:0.75rem; color:#1f2937; line-height:1.55; font-size:0.95rem;">
-                                <div><strong>Fortaleza:</strong> {block_names[best_block].capitalize()} ({best_metric['name']}: {best_metric['value_text']}).</div>
-                                <div style="margin-top:0.3rem;"><strong>Foco de riesgo:</strong> {block_names[worst_block].capitalize()} ({worst_metric['name']}: {worst_metric['value_text']}).</div>
-                                <div style="margin-top:0.3rem;"><strong>Recomendación:</strong> {priority_map[worst_block].replace("Prioridad: ", "")}</div>
+                                <div>{narrative_1}</div>
+                                <div style="margin-top:0.3rem;">{narrative_2}</div>
+                                <div style="margin-top:0.3rem;">{narrative_3}</div>
                             </div>
                         </div>
                         """,
