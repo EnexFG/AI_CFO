@@ -711,29 +711,29 @@ if selected_company:
                 ccc_2024 = get_indicator_value(2024, "CICLO DE CONVERSIÓN DE EFECTIVO")
                 ccc_2022 = get_indicator_value(2022, "CICLO DE CONVERSIÓN DE EFECTIVO")
 
-                pasivo_patrimonio_2024 = pd.NA
-                pasivo_patrimonio_2022 = pd.NA
+                patrimonio_activo_2024 = pd.NA
+                patrimonio_activo_2022 = pd.NA
                 balance_company_df_summary = balance_data[balance_data["RUC"] == str(ruc)].copy()
                 if balance_company_df_summary.empty:
                     balance_company_df_summary = balance_data[balance_data["NOMBRE"] == selected_company].copy()
                 if (
                     not balance_company_df_summary.empty
-                    and "PASIVO" in balance_company_df_summary.columns
+                    and "ACTIVO" in balance_company_df_summary.columns
                     and "PATRIMONIO" in balance_company_df_summary.columns
                 ):
                     annual_balance_summary = (
-                        balance_company_df_summary.groupby("AÑO", dropna=False)[["PASIVO", "PATRIMONIO"]]
+                        balance_company_df_summary.groupby("AÑO", dropna=False)[["ACTIVO", "PATRIMONIO"]]
                         .sum(numeric_only=True)
                         .reindex([2022, 2024])
                     )
-                    pasivo_2024 = annual_balance_summary.loc[2024, "PASIVO"]
+                    activo_2024 = annual_balance_summary.loc[2024, "ACTIVO"]
                     patrimonio_2024 = annual_balance_summary.loc[2024, "PATRIMONIO"]
-                    pasivo_2022 = annual_balance_summary.loc[2022, "PASIVO"]
+                    activo_2022 = annual_balance_summary.loc[2022, "ACTIVO"]
                     patrimonio_2022 = annual_balance_summary.loc[2022, "PATRIMONIO"]
-                    if pd.notna(pasivo_2024) and pd.notna(patrimonio_2024) and patrimonio_2024 > 0:
-                        pasivo_patrimonio_2024 = pasivo_2024 / patrimonio_2024
-                    if pd.notna(pasivo_2022) and pd.notna(patrimonio_2022) and patrimonio_2022 > 0:
-                        pasivo_patrimonio_2022 = pasivo_2022 / patrimonio_2022
+                    if pd.notna(activo_2024) and pd.notna(patrimonio_2024) and activo_2024 > 0:
+                        patrimonio_activo_2024 = patrimonio_2024 / activo_2024
+                    if pd.notna(activo_2022) and pd.notna(patrimonio_2022) and activo_2022 > 0:
+                        patrimonio_activo_2022 = patrimonio_2022 / activo_2022
 
                 summary_metrics = {"Rentabilidad": [], "Estructura": [], "Liquidez": []}
 
@@ -800,11 +800,11 @@ if selected_company:
                 )
                 add_metric(
                     "Estructura",
-                    "Pasivo/Patrimonio",
-                    pasivo_patrimonio_2024,
-                    score_low_is_better(pasivo_patrimonio_2024, 1.00, 2.00),
-                    trend_adjustment(pasivo_patrimonio_2022, pasivo_patrimonio_2024, False, 0.05),
-                    "ratio",
+                    "Patrimonio/Activo",
+                    patrimonio_activo_2024,
+                    score_high_is_better(patrimonio_activo_2024, 0.40, 0.25),
+                    trend_adjustment(patrimonio_activo_2022, patrimonio_activo_2024, True, 0.01),
+                    "percent",
                 )
                 add_metric(
                     "Liquidez",
