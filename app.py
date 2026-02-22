@@ -161,6 +161,62 @@ def safe_filename(text: str) -> str:
     return "".join(c if c.isalnum() or c in ("-", "_") else "_" for c in str(text)).strip("_")
 
 
+def score_high_is_better(value, good_threshold: float, neutral_threshold: float) -> float | None:
+    if pd.isna(value):
+        return None
+    if value >= good_threshold:
+        return 100.0
+    if value >= neutral_threshold:
+        return 65.0
+    return 30.0
+
+
+def score_low_is_better(value, good_threshold: float, neutral_threshold: float) -> float | None:
+    if pd.isna(value):
+        return None
+    if value <= good_threshold:
+        return 100.0
+    if value <= neutral_threshold:
+        return 65.0
+    return 30.0
+
+
+def trend_adjustment(value_start, value_end, higher_is_better: bool, tolerance: float) -> float:
+    if pd.isna(value_start) or pd.isna(value_end):
+        return 0.0
+    delta = float(value_end) - float(value_start)
+    if abs(delta) <= tolerance:
+        return 0.0
+    if higher_is_better:
+        return 10.0 if delta > 0 else -10.0
+    return 10.0 if delta < 0 else -10.0
+
+
+def clamp_score(value: float | None) -> float | None:
+    if value is None:
+        return None
+    return max(0.0, min(100.0, value))
+
+
+def average_score(scores: list[float | None]) -> float | None:
+    valid_scores = [float(s) for s in scores if s is not None]
+    if not valid_scores:
+        return None
+    return sum(valid_scores) / len(valid_scores)
+
+
+def score_label(score: float | None) -> str:
+    if score is None:
+        return "sin datos"
+    if score >= 75:
+        return "fuerte"
+    if score >= 60:
+        return "estable"
+    if score >= 45:
+        return "en observacion"
+    return "debil"
+
+
 render_login_gate()
 header_col, logo_col = st.columns([5.5, 1.5], vertical_alignment="top")
 with header_col:
@@ -625,6 +681,202 @@ if selected_company:
                     .mean(numeric_only=True)
                     .reindex([2021, 2022, 2023, 2024])
                 )
+
+                def get_indicator_value(year: int, column: str):
+                    if column in annual_indicators_df.columns and year in annual_indicators_df.index:
+                        return annual_indicators_df.loc[year, column]
+                    return pd.NA
+
+                # Resumen automatico: reglas objetivas con umbrales y tendencia 2022->2024
+                ingresos_2023 = annual_df.loc[2023, "INGRESOS"] if "INGRESOS" in annual_df.columns else pd.NA
+                ingresos_2024 = annual_df.loc[2024, "INGRESOS"] if "INGRESOS" in annual_df.columns else pd.NA
+                crecimiento_ingresos = pd.NA
+                if pd.notna(ingresos_2023) and pd.notna(ingresos_2024) and ingresos_2023 != 0:
+                    crecimiento_ingresos = (ingresos_2024 - ingresos_2023) / abs(ingresos_2023)
+
+                margen_ebitda_2024 = get_indicator_value(2024, "MARGEN EBITDA")
+                margen_ebitda_2022 = get_indicator_value(2022, "MARGEN EBITDA")
+                margen_utilidad_2024 = get_indicator_value(2024, "MARGEN DE UTILIDAD")
+                margen_utilidad_2022 = get_indicator_value(2022, "MARGEN DE UTILIDAD")
+                roa_2024 = get_indicator_value(2024, "ROA")
+                roa_2022 = get_indicator_value(2022, "ROA")
+                roe_2024 = get_indicator_value(2024, "ROE")
+                roe_2022 = get_indicator_value(2022, "ROE")
+                endeudamiento_2024 = get_indicator_value(2024, "ENDEUDAMIENTO")
+                endeudamiento_2022 = get_indicator_value(2022, "ENDEUDAMIENTO")
+                razon_corriente_2024 = get_indicator_value(2024, "RAZÓN CORRIENTE")
+                razon_corriente_2022 = get_indicator_value(2022, "RAZÓN CORRIENTE")
+                prueba_acida_2024 = get_indicator_value(2024, "PRUEBA ÁCIDA")
+                prueba_acida_2022 = get_indicator_value(2022, "PRUEBA ÁCIDA")
+                ccc_2024 = get_indicator_value(2024, "CICLO DE CONVERSIÓN DE EFECTIVO")
+                ccc_2022 = get_indicator_value(2022, "CICLO DE CONVERSIÓN DE EFECTIVO")
+
+                pasivo_patrimonio_2024 = pd.NA
+                pasivo_patrimonio_2022 = pd.NA
+                balance_company_df_summary = balance_data[balance_data["RUC"] == str(ruc)].copy()
+                if balance_company_df_summary.empty:
+                    balance_company_df_summary = balance_data[balance_data["NOMBRE"] == selected_company].copy()
+                if (
+                    not balance_company_df_summary.empty
+                    and "PASIVO" in balance_company_df_summary.columns
+                    and "PATRIMONIO" in balance_company_df_summary.columns
+                ):
+                    annual_balance_summary = (
+                        balance_company_df_summary.groupby("AÑO", dropna=False)[["PASIVO", "PATRIMONIO"]]
+                        .sum(numeric_only=True)
+                        .reindex([2022, 2024])
+                    )
+                    pasivo_2024 = annual_balance_summary.loc[2024, "PASIVO"]
+                    patrimonio_2024 = annual_balance_summary.loc[2024, "PATRIMONIO"]
+                    pasivo_2022 = annual_balance_summary.loc[2022, "PASIVO"]
+                    patrimonio_2022 = annual_balance_summary.loc[2022, "PATRIMONIO"]
+                    if pd.notna(pasivo_2024) and pd.notna(patrimonio_2024) and patrimonio_2024 > 0:
+                        pasivo_patrimonio_2024 = pasivo_2024 / patrimonio_2024
+                    if pd.notna(pasivo_2022) and pd.notna(patrimonio_2022) and patrimonio_2022 > 0:
+                        pasivo_patrimonio_2022 = pasivo_2022 / patrimonio_2022
+
+                summary_metrics = {"Rentabilidad": [], "Estructura": [], "Liquidez": []}
+
+                def add_metric(block: str, name: str, value_2024, base_score: float | None, trend_score: float = 0.0, value_type: str = "ratio"):
+                    final_score = clamp_score(base_score + trend_score) if base_score is not None else None
+                    if pd.isna(value_2024):
+                        value_text = "n.d."
+                    elif value_type == "percent":
+                        value_text = f"{float(value_2024) * 100:.2f}%"
+                    elif value_type == "days":
+                        value_text = f"{float(value_2024):,.1f} dias"
+                    else:
+                        value_text = f"{float(value_2024):,.2f}"
+                    summary_metrics[block].append(
+                        {"name": name, "score": final_score, "value_text": value_text}
+                    )
+
+                add_metric(
+                    "Rentabilidad",
+                    "Crecimiento de ingresos",
+                    crecimiento_ingresos,
+                    score_high_is_better(crecimiento_ingresos, 0.10, 0.00),
+                    value_type="percent",
+                )
+                add_metric(
+                    "Rentabilidad",
+                    "Margen EBITDA",
+                    margen_ebitda_2024,
+                    score_high_is_better(margen_ebitda_2024, 0.15, 0.08),
+                    trend_adjustment(margen_ebitda_2022, margen_ebitda_2024, True, 0.005),
+                    "percent",
+                )
+                add_metric(
+                    "Rentabilidad",
+                    "Margen de utilidad",
+                    margen_utilidad_2024,
+                    score_high_is_better(margen_utilidad_2024, 0.08, 0.03),
+                    trend_adjustment(margen_utilidad_2022, margen_utilidad_2024, True, 0.005),
+                    "percent",
+                )
+                add_metric(
+                    "Rentabilidad",
+                    "ROA",
+                    roa_2024,
+                    score_high_is_better(roa_2024, 0.08, 0.04),
+                    trend_adjustment(roa_2022, roa_2024, True, 0.005),
+                    "percent",
+                )
+                add_metric(
+                    "Rentabilidad",
+                    "ROE",
+                    roe_2024,
+                    score_high_is_better(roe_2024, 0.15, 0.08),
+                    trend_adjustment(roe_2022, roe_2024, True, 0.005),
+                    "percent",
+                )
+                add_metric(
+                    "Estructura",
+                    "Endeudamiento",
+                    endeudamiento_2024,
+                    score_low_is_better(endeudamiento_2024, 0.50, 0.70),
+                    trend_adjustment(endeudamiento_2022, endeudamiento_2024, False, 0.01),
+                    "percent",
+                )
+                add_metric(
+                    "Estructura",
+                    "Pasivo/Patrimonio",
+                    pasivo_patrimonio_2024,
+                    score_low_is_better(pasivo_patrimonio_2024, 1.00, 2.00),
+                    trend_adjustment(pasivo_patrimonio_2022, pasivo_patrimonio_2024, False, 0.05),
+                    "ratio",
+                )
+                add_metric(
+                    "Liquidez",
+                    "Razon corriente",
+                    razon_corriente_2024,
+                    score_high_is_better(razon_corriente_2024, 1.50, 1.10),
+                    trend_adjustment(razon_corriente_2022, razon_corriente_2024, True, 0.05),
+                    "ratio",
+                )
+                add_metric(
+                    "Liquidez",
+                    "Prueba acida",
+                    prueba_acida_2024,
+                    score_high_is_better(prueba_acida_2024, 1.00, 0.70),
+                    trend_adjustment(prueba_acida_2022, prueba_acida_2024, True, 0.05),
+                    "ratio",
+                )
+                add_metric(
+                    "Liquidez",
+                    "Ciclo de conversion de efectivo",
+                    ccc_2024,
+                    score_low_is_better(ccc_2024, 30.0, 60.0),
+                    trend_adjustment(ccc_2022, ccc_2024, False, 2.0),
+                    "days",
+                )
+
+                block_scores = {
+                    "Rentabilidad": average_score([item["score"] for item in summary_metrics["Rentabilidad"]]),
+                    "Estructura": average_score([item["score"] for item in summary_metrics["Estructura"]]),
+                    "Liquidez": average_score([item["score"] for item in summary_metrics["Liquidez"]]),
+                }
+                block_weights = {"Rentabilidad": 0.40, "Estructura": 0.30, "Liquidez": 0.30}
+                valid_blocks = {k: v for k, v in block_scores.items() if v is not None}
+
+                if valid_blocks:
+                    valid_weight_sum = sum(block_weights[k] for k in valid_blocks)
+                    total_score = sum(valid_blocks[k] * block_weights[k] for k in valid_blocks) / valid_weight_sum
+
+                    best_block = max(valid_blocks, key=valid_blocks.get)
+                    worst_block = min(valid_blocks, key=valid_blocks.get)
+                    best_metric = max(
+                        [m for m in summary_metrics[best_block] if m["score"] is not None],
+                        key=lambda m: m["score"],
+                    )
+                    worst_metric = min(
+                        [m for m in summary_metrics[worst_block] if m["score"] is not None],
+                        key=lambda m: m["score"],
+                    )
+
+                    block_names = {
+                        "Rentabilidad": "rentabilidad",
+                        "Estructura": "estructura financiera",
+                        "Liquidez": "liquidez",
+                    }
+                    priority_map = {
+                        "Rentabilidad": "Prioridad: reforzar margen operativo y disciplina de costos para sostener la rentabilidad.",
+                        "Estructura": "Prioridad: optimizar la estructura de financiamiento y reducir presion de pasivos.",
+                        "Liquidez": "Prioridad: mejorar capital de trabajo (cobranza, inventario y gestion de pagos).",
+                    }
+
+                    st.markdown("##### Resumen Ejecutivo Automatico")
+                    st.markdown(
+                        (
+                            f"La empresa muestra un perfil **{score_label(total_score)}** con fortaleza en "
+                            f"**{block_names[best_block]}** ({best_metric['name']}: {best_metric['value_text']}).\n\n"
+                            f"El principal foco de riesgo esta en **{block_names[worst_block]}** "
+                            f"({worst_metric['name']}: {worst_metric['value_text']}).\n\n"
+                            f"{priority_map[worst_block]}"
+                        )
+                    )
+                else:
+                    st.info("No hay datos suficientes para construir el resumen automatico de indicadores.")
 
                 indicator_rows = []
                 for indicator in indicator_list:
