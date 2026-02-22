@@ -748,7 +748,7 @@ if selected_company:
                     else:
                         value_text = f"{float(value_2024):,.2f}"
                     summary_metrics[block].append(
-                        {"name": name, "score": final_score, "value_text": value_text}
+                        {"name": name, "score": final_score, "value_text": value_text, "trend_score": trend_score}
                     )
 
                 add_metric(
@@ -836,6 +836,11 @@ if selected_company:
                     "Estructura": average_score([item["score"] for item in summary_metrics["Estructura"]]),
                     "Liquidez": average_score([item["score"] for item in summary_metrics["Liquidez"]]),
                 }
+                block_trend_scores = {
+                    "Rentabilidad": average_score([item["trend_score"] for item in summary_metrics["Rentabilidad"]]),
+                    "Estructura": average_score([item["trend_score"] for item in summary_metrics["Estructura"]]),
+                    "Liquidez": average_score([item["trend_score"] for item in summary_metrics["Liquidez"]]),
+                }
                 block_weights = {"Rentabilidad": 0.40, "Estructura": 0.30, "Liquidez": 0.30}
                 valid_blocks = {k: v for k, v in block_scores.items() if v is not None}
 
@@ -864,14 +869,28 @@ if selected_company:
                         "Estructura": "Prioridad: optimizar la estructura de financiamiento y reducir presión de pasivos.",
                         "Liquidez": "Prioridad: mejorar capital de trabajo (cobranza, inventario y gestión de pagos).",
                     }
+
+                    def trend_label(value: float | None) -> str:
+                        if value is None:
+                            return "sin tendencia clara"
+                        if value > 1.0:
+                            return "tendencia favorable"
+                        if value < -1.0:
+                            return "tendencia desfavorable"
+                        return "tendencia estable"
+
+                    best_block_trend_text = trend_label(block_trend_scores.get(best_block))
+                    worst_block_trend_text = trend_label(block_trend_scores.get(worst_block))
                     narrative_1 = (
                         f"En <strong>{selected_company}</strong>, el análisis automático ubica el desempeño en nivel "
                         f"<strong>{score_label(total_score)}</strong>, con fortaleza relativa en "
-                        f"<strong>{block_names[best_block]}</strong> ({best_metric['name']}: {best_metric['value_text']})."
+                        f"<strong>{block_names[best_block]}</strong> ({best_metric['name']}: {best_metric['value_text']}) "
+                        f"y <strong>{best_block_trend_text}</strong> en ese frente."
                     )
                     narrative_2 = (
                         f"La principal señal de riesgo se concentra en <strong>{block_names[worst_block]}</strong>, "
-                        f"especialmente en {worst_metric['name']} ({worst_metric['value_text']})."
+                        f"especialmente en {worst_metric['name']} ({worst_metric['value_text']}), con "
+                        f"<strong>{worst_block_trend_text}</strong>."
                     )
                     narrative_3 = priority_map[worst_block].replace("Prioridad: ", "En el corto plazo, se recomienda ")
 
