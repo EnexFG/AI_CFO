@@ -197,129 +197,115 @@ def to_indicators_pdf_bytes(
     block_scores: dict[str, float | None],
     indicators_table_df: pd.DataFrame,
 ) -> bytes:
-    try:
-        from reportlab.lib import colors
-        from reportlab.lib.pagesizes import A4
-        from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
-        from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
-    except Exception as exc:
-        raise RuntimeError("No hay motor PDF disponible (falta reportlab).") from exc
+    import textwrap
 
-    buffer = io.BytesIO()
-    doc = SimpleDocTemplate(
-        buffer,
-        pagesize=A4,
-        leftMargin=30,
-        rightMargin=30,
-        topMargin=30,
-        bottomMargin=30,
-    )
-    styles = getSampleStyleSheet()
-    body_style = ParagraphStyle(
-        "BodySmall",
-        parent=styles["Normal"],
-        fontName="Helvetica",
-        fontSize=9.5,
-        leading=13,
-        textColor=colors.HexColor("#1f2937"),
-    )
-    heading_style = ParagraphStyle(
-        "SectionHeading",
-        parent=styles["Heading3"],
-        fontName="Helvetica-Bold",
-        fontSize=11.5,
-        textColor=colors.HexColor("#111827"),
-        spaceAfter=6,
-    )
+    def normalize_text(value) -> str:
+        text = strip_simple_html(value if value is not None else "")
+        return str(text).replace("\n", " ").strip()
 
-    story = [
-        Paragraph("Indicadores Financieros Clave", styles["Title"]),
-        Spacer(1, 8),
-        Paragraph(f"<b>Empresa:</b> {company_name}", body_style),
-        Paragraph(f"<b>RUC:</b> {ruc}", body_style),
-        Spacer(1, 8),
-        Paragraph("Resumen Ejecutivo Automático", heading_style),
-    ]
+    def add_wrapped(lines: list[str], text: str, width: int = 108) -> None:
+        wrapped = textwrap.wrap(normalize_text(text), width=width) or [""]
+        lines.extend(wrapped)
 
+    def pdf_escape_text(text: str) -> str:
+        return text.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
+
+    def build_content_stream(page_lines: list[str]) -> bytes:
+        commands = ["BT", "/F1 9 Tf", "40 805 Td"]
+        for idx, raw_line in enumerate(page_lines):
+            safe_line = pdf_escape_text(raw_line)
+            if idx > 0:
+                commands.append("0 -14 Td")
+            commands.append(f"({safe_line}) Tj")
+        commands.append("ET")
+        return "\n".join(commands).encode("latin-1", errors="replace")
+
+    lines: list[str] = []
+    add_wrapped(lines, "INDICADORES FINANCIEROS CLAVE", width=108)
+    add_wrapped(lines, f"Empresa: {company_name}", width=108)
+    add_wrapped(lines, f"RUC: {ruc}", width=108)
     if total_score is not None:
-        story.append(
-            Paragraph(
-                f"<b>Score total:</b> {total_score:.1f}/100 | <b>Estado:</b> {status_label.capitalize()}",
-                body_style,
-            )
-        )
+        add_wrapped(lines, f"Score total: {total_score:.1f}/100 | Estado: {status_label.capitalize()}", width=108)
     else:
-        story.append(Paragraph("<b>Score total:</b> N/D | <b>Estado:</b> Sin datos", body_style))
-
-    for line in narrative_lines:
-        story.append(Paragraph(strip_simple_html(line), body_style))
-
-    score_table_data = [["Bloque", "Score"]]
+        add_wrapped(lines, "Score total: N/D | Estado: Sin datos", width=108)
+    lines.append("")
+    add_wrapped(lines, "Resumen Ejecutivo", width=108)
+    for narrative in narrative_lines:
+        add_wrapped(lines, narrative, width=108)
+    lines.append("")
+    add_wrapped(lines, "Scores por Bloque", width=108)
     for block in ["Rentabilidad", "Estructura", "Liquidez"]:
         value = block_scores.get(block)
         score_text = f"{value:.1f}/100" if value is not None else "N/D"
-        score_table_data.append([block, score_text])
-
-    score_table = Table(score_table_data, colWidths=[130, 90])
-    score_table.setStyle(
-        TableStyle(
-            [
-                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1f2937")),
-                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-                ("ALIGN", (1, 1), (1, -1), "RIGHT"),
-                ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#d1d5db")),
-                ("FONTNAME", (0, 1), (-1, -1), "Helvetica"),
-                ("FONTSIZE", (0, 0), (-1, -1), 9),
-                ("TOPPADDING", (0, 0), (-1, -1), 4),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-            ]
-        )
-    )
-    story.extend([Spacer(1, 8), score_table, Spacer(1, 10), Paragraph("Tabla de Indicadores", heading_style)])
-
-    table_header = ["Indicador", "2021", "2022", "2023", "2024"]
-    table_data = [table_header]
-    group_row_indexes = []
+        add_wrapped(lines, f"- {block}: {score_text}", width=108)
+    lines.append("")
+    add_wrapped(lines, "Tabla de Indicadores (2021-2024)", width=108)
+    header = f"{'Indicador':<46} | {'2021':>9} | {'2022':>9} | {'2023':>9} | {'2024':>9}"
+    lines.append(header)
+    lines.append("-" * len(header))
     for _, row in indicators_table_df.iterrows():
-        indicator = str(row.get("Indicador", "-"))
-        r = [
-            indicator,
-            str(row.get("2021", "-")),
-            str(row.get("2022", "-")),
-            str(row.get("2023", "-")),
-            str(row.get("2024", "-")),
-        ]
-        table_data.append(r)
+        indicator = normalize_text(row.get("Indicador", "-"))
+        y2021 = normalize_text(row.get("2021", "-"))
+        y2022 = normalize_text(row.get("2022", "-"))
+        y2023 = normalize_text(row.get("2023", "-"))
+        y2024 = normalize_text(row.get("2024", "-"))
         if indicator.upper().startswith("INDICADORES DE "):
-            group_row_indexes.append(len(table_data) - 1)
+            lines.append(f"[{indicator}]")
+        else:
+            lines.append(f"{indicator[:46]:<46} | {y2021[:9]:>9} | {y2022[:9]:>9} | {y2023[:9]:>9} | {y2024[:9]:>9}")
 
-    indicator_table = Table(table_data, colWidths=[220, 70, 70, 70, 70], repeatRows=1)
-    table_style = [
-        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1f2937")),
-        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-        ("ALIGN", (1, 1), (-1, -1), "RIGHT"),
-        ("ALIGN", (0, 0), (0, -1), "LEFT"),
-        ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#d1d5db")),
-        ("FONTNAME", (0, 1), (-1, -1), "Helvetica"),
-        ("FONTSIZE", (0, 0), (-1, -1), 8.8),
-        ("TOPPADDING", (0, 0), (-1, -1), 4),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-    ]
-    for idx in group_row_indexes:
-        table_style.extend(
-            [
-                ("BACKGROUND", (0, idx), (-1, idx), colors.HexColor("#eef2ff")),
-                ("FONTNAME", (0, idx), (-1, idx), "Helvetica-Bold"),
-            ]
+    if not lines:
+        lines = ["Informe sin datos."]
+
+    max_lines_per_page = 48
+    page_chunks = [lines[i : i + max_lines_per_page] for i in range(0, len(lines), max_lines_per_page)]
+    if not page_chunks:
+        page_chunks = [["Informe sin datos."]]
+
+    objects: dict[int, bytes] = {}
+    objects[1] = b"<< /Type /Catalog /Pages 2 0 R >>"
+    objects[3] = b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"
+
+    page_obj_numbers = []
+    for page_idx, page_lines in enumerate(page_chunks):
+        page_obj_num = 4 + page_idx * 2
+        content_obj_num = 5 + page_idx * 2
+        page_obj_numbers.append(page_obj_num)
+
+        content_stream = build_content_stream(page_lines)
+        objects[content_obj_num] = (
+            f"<< /Length {len(content_stream)} >>\nstream\n".encode("latin-1")
+            + content_stream
+            + b"\nendstream"
         )
-    indicator_table.setStyle(TableStyle(table_style))
-    story.append(indicator_table)
+        objects[page_obj_num] = (
+            f"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] "
+            f"/Resources << /Font << /F1 3 0 R >> >> /Contents {content_obj_num} 0 R >>"
+        ).encode("latin-1")
 
-    doc.build(story)
-    buffer.seek(0)
-    return buffer.getvalue()
+    kids = " ".join(f"{num} 0 R" for num in page_obj_numbers)
+    objects[2] = f"<< /Type /Pages /Kids [{kids}] /Count {len(page_obj_numbers)} >>".encode("latin-1")
+
+    pdf = b"%PDF-1.4\n%\xe2\xe3\xcf\xd3\n"
+    offsets: dict[int, int] = {}
+    for obj_num in sorted(objects.keys()):
+        offsets[obj_num] = len(pdf)
+        pdf += f"{obj_num} 0 obj\n".encode("latin-1")
+        pdf += objects[obj_num]
+        pdf += b"\nendobj\n"
+
+    xref_pos = len(pdf)
+    max_obj_num = max(objects.keys())
+    pdf += f"xref\n0 {max_obj_num + 1}\n".encode("latin-1")
+    pdf += b"0000000000 65535 f \n"
+    for idx in range(1, max_obj_num + 1):
+        offset = offsets.get(idx, 0)
+        flag = "n" if idx in offsets else "f"
+        gen = "00000" if flag == "n" else "65535"
+        pdf += f"{offset:010d} {gen} {flag} \n".encode("latin-1")
+
+    pdf += f"trailer\n<< /Size {max_obj_num + 1} /Root 1 0 R >>\nstartxref\n{xref_pos}\n%%EOF".encode("latin-1")
+    return pdf
 
 
 def score_high_is_better(value, good_threshold: float, neutral_threshold: float) -> float | None:
@@ -1311,8 +1297,8 @@ if selected_company:
                         mime="application/pdf",
                         key=f"download_pdf_ind_{safe_filename(selected_company)}",
                     )
-                except RuntimeError:
-                    st.error("No se pudo generar PDF de Indicadores (falta reportlab).")
+                except Exception:
+                    st.error("No se pudo generar el PDF de Indicadores.")
 
                 if missing_indicators:
                     st.warning(f"Indicadores no encontrados en el dataset: {', '.join(missing_indicators)}")
