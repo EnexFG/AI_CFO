@@ -224,39 +224,38 @@ def to_indicators_pdf_bytes(
     table_col_widths = [94, 24, 24, 24, 24]
     row_h = 7
 
-    # Header card
-    pdf.set_draw_color(199, 210, 254)
-    pdf.set_fill_color(248, 250, 255)
-    card_h = 38
-    pdf.rect(10, 10, page_width, card_h, "DF")
-    has_logo = False
+    # Logo outside the blue card (top-right), preserving aspect ratio.
     logo_path = Path("Logo Andersen.png")
     if logo_path.exists():
         try:
-            # Bigger logo, constrained inside the header card.
-            pdf.image(str(logo_path), x=154, y=14, w=40, h=18)
-            has_logo = True
+            pdf.image(str(logo_path), x=158, y=8, w=36)
         except Exception:
-            has_logo = False
+            pass
 
-    info_w = 136 if has_logo else 0
-    pdf.set_xy(14, 13)
+    # Header card
+    card_y = 24
+    card_h = 32
+    pdf.set_draw_color(199, 210, 254)
+    pdf.set_fill_color(248, 250, 255)
+    pdf.rect(10, card_y, page_width, card_h, "DF")
+
+    pdf.set_xy(14, card_y + 3)
     pdf.set_font("Helvetica", "B", 13)
     pdf.set_text_color(17, 24, 39)
-    pdf.cell(info_w, 6, pdf_text("Indicadores Financieros Clave"), ln=1)
+    pdf.cell(0, 6, pdf_text("Indicadores Financieros Clave"), ln=1)
     pdf.set_x(14)
     pdf.set_font("Helvetica", "", 10)
-    pdf.cell(info_w, 5, pdf_text(f"Empresa: {company_name}"), ln=1)
+    pdf.cell(0, 5, pdf_text(f"Empresa: {company_name}"), ln=1)
     pdf.set_x(14)
-    pdf.cell(info_w, 5, pdf_text(f"RUC: {ruc}"), ln=1)
+    pdf.cell(0, 5, pdf_text(f"RUC: {ruc}"), ln=1)
     pdf.set_x(14)
     if total_score is not None:
         score_line = f"Score total: {total_score:.1f}/100 | Estado: {status_label.capitalize()}"
     else:
         score_line = "Score total: N/D | Estado: Sin datos"
-    pdf.cell(info_w, 5, pdf_text(score_line), ln=1)
+    pdf.cell(0, 5, pdf_text(score_line), ln=1)
     # Ensure the executive summary starts below the blue header card.
-    pdf.set_y(10 + card_h + 6)
+    pdf.set_y(card_y + card_h + 6)
 
     # Narrative
     pdf.set_font("Helvetica", "B", 11)
