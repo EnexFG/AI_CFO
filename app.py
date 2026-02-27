@@ -227,18 +227,19 @@ def to_indicators_pdf_bytes(
     # Header card
     pdf.set_draw_color(199, 210, 254)
     pdf.set_fill_color(248, 250, 255)
-    card_h = 32
+    card_h = 38
     pdf.rect(10, 10, page_width, card_h, "DF")
     has_logo = False
     logo_path = Path("Logo Andersen.png")
     if logo_path.exists():
         try:
-            pdf.image(str(logo_path), x=171, y=13, w=24)
+            # Bigger logo, constrained inside the header card.
+            pdf.image(str(logo_path), x=154, y=14, w=40, h=18)
             has_logo = True
         except Exception:
             has_logo = False
 
-    info_w = 150 if has_logo else 0
+    info_w = 136 if has_logo else 0
     pdf.set_xy(14, 13)
     pdf.set_font("Helvetica", "B", 13)
     pdf.set_text_color(17, 24, 39)
