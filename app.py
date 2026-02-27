@@ -63,8 +63,8 @@ def render_login_gate() -> None:
 
 @st.cache_data
 def load_financial_data(path_2021_2022: str, path_2023_2024: str) -> pd.DataFrame:
-    df_2021_2022 = pd.read_pickle(path_2021_2022).copy()
-    df_2023_2024 = pd.read_pickle(path_2023_2024).copy()
+    df_2021_2022 = safe_read_pickle(path_2021_2022)
+    df_2023_2024 = safe_read_pickle(path_2023_2024)
     df = pd.concat([df_2021_2022, df_2023_2024], ignore_index=True)
     df["AÑO"] = pd.to_numeric(df["AÑO"], errors="coerce").astype("Int64")
     df["NOMBRE"] = df["NOMBRE"].astype(str).str.strip()
@@ -73,9 +73,9 @@ def load_financial_data(path_2021_2022: str, path_2023_2024: str) -> pd.DataFram
 
 @st.cache_data
 def load_balance_data(path_2022: str, path_2023: str, path_2024: str) -> pd.DataFrame:
-    df_2022 = pd.read_pickle(path_2022).copy()
-    df_2023 = pd.read_pickle(path_2023).copy()
-    df_2024 = pd.read_pickle(path_2024).copy()
+    df_2022 = safe_read_pickle(path_2022)
+    df_2023 = safe_read_pickle(path_2023)
+    df_2024 = safe_read_pickle(path_2024)
 
     df_2022["AÑO"] = 2022
     df_2023["AÑO"] = 2023
@@ -90,7 +90,7 @@ def load_balance_data(path_2022: str, path_2023: str, path_2024: str) -> pd.Data
 
 @st.cache_data
 def load_indicators_data(path: str) -> pd.DataFrame:
-    df = pd.read_pickle(path).copy()
+    df = safe_read_pickle(path)
     if "AÑO" in df.columns:
         df["AÑO"] = pd.to_numeric(df["AÑO"], errors="coerce").astype("Int64")
     if "NOMBRE" in df.columns:
@@ -102,7 +102,7 @@ def load_indicators_data(path: str) -> pd.DataFrame:
 
 @st.cache_data
 def load_company_directory_data(path: str) -> pd.DataFrame:
-    df = pd.read_pickle(path).copy()
+    df = safe_read_pickle(path)
     if "RUC" in df.columns:
         df["RUC"] = df["RUC"].astype(str).str.strip()
     return df
@@ -308,6 +308,31 @@ def to_indicators_pdf_bytes(
     return pdf
 
 
+def safe_read_pickle(path: str) -> pd.DataFrame:
+    file_path = Path(path)
+    if not file_path.exists():
+        raise FileNotFoundError(f"No se encontró el archivo: {path}")
+
+    head = file_path.read_bytes()[:256]
+    if head.startswith(b"version https://git-lfs.github.com/spec/v1"):
+        raise RuntimeError(
+            f"El archivo {path} es un puntero de Git LFS, no un pickle real. "
+            "En Streamlit Cloud debes subir el archivo binario real o evitar LFS para ese archivo."
+        )
+
+    try:
+        return pd.read_pickle(path).copy()
+    except Exception as exc:
+        header_hint = ""
+        if not head.startswith(b"\x80"):
+            header_text = head.decode("utf-8", errors="replace").strip()
+            if header_text:
+                header_hint = f" Encabezado detectado: {header_text[:100]!r}."
+        raise RuntimeError(
+            f"No se pudo leer {path} como pickle ({type(exc).__name__}).{header_hint}"
+        ) from exc
+
+
 def score_high_is_better(value, good_threshold: float, neutral_threshold: float) -> float | None:
     if pd.isna(value):
         return None
@@ -384,22 +409,42 @@ with logo_col:
             unsafe_allow_html=True,
         )
 
-data = load_financial_data("supercias_resultados_2021_2022.pkl", "supercias_resultados_2023_2024.pkl")
-balance_data = load_balance_data("supercias_balances_2022.pkl", "supercias_balances_2023.pkl", "supercias_balances_2024.pkl")
+data = None
+balance_data = None
+critical_load_errors = []
+try:
+    data = load_financial_data("supercias_resultados_2021_2022.pkl", "supercias_resultados_2023_2024.pkl")
+except Exception as exc:
+    critical_load_errors.append(str(exc))
+try:
+    balance_data = load_balance_data("supercias_balances_2022.pkl", "supercias_balances_2023.pkl", "supercias_balances_2024.pkl")
+except Exception as exc:
+    critical_load_errors.append(str(exc))
+
+if data is None or balance_data is None:
+    st.error("No se pudieron cargar los datasets principales de resultados/balance.")
+    for err in critical_load_errors:
+        st.code(err)
+    st.info(
+        "Si usas Streamlit Cloud, revisa que los .pkl sean binarios reales y no punteros de Git LFS. "
+        "También valida que los archivos estén completos en el repositorio."
+    )
+    st.stop()
+
 indicators_data = None
 try:
     indicators_data = load_indicators_data("supercias_indicadores.pkl")
-except FileNotFoundError:
+except Exception:
     indicators_data = None
 company_directory_data = None
 try:
     company_directory_data = load_company_directory_data("directorio_core.pickle")
-except FileNotFoundError:
+except Exception:
     company_directory_data = None
 ciiu_catalog_data = None
 try:
     ciiu_catalog_data = load_ciiu_catalog("CIIU.xlsx")
-except (FileNotFoundError, ImportError, ValueError):
+except Exception:
     ciiu_catalog_data = None
 
 statement_structure = [
