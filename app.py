@@ -309,6 +309,8 @@ if selected_company:
     )
 
     ruc = company_df["RUC"].dropna().astype(str).iloc[0] if not company_df["RUC"].dropna().empty else "-"
+    st.subheader(selected_company)
+    st.write(f"**RUC:** {ruc}")
     tab_profile, tab_pyg, tab_bg, tab_ind, tab_graph = st.tabs(
         [
             "Perfil de la Compañía",
