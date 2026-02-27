@@ -108,6 +108,21 @@ def load_company_directory_data(path: str) -> pd.DataFrame:
     return df
 
 
+@st.cache_data
+def load_ciiu_catalog(path: str) -> pd.DataFrame:
+    df = pd.read_excel(path).copy()
+    if "Codigo" not in df.columns or "Descripcion" not in df.columns:
+        # Fallback defensivo por si cambia el encabezado del archivo.
+        base_cols = df.columns.tolist()
+        if len(base_cols) >= 2:
+            df = df.rename(columns={base_cols[0]: "Codigo", base_cols[1]: "Descripcion"})
+    df = df.dropna(subset=["Codigo", "Descripcion"]).copy()
+    df["Codigo"] = df["Codigo"].astype(str).str.strip().str.upper()
+    df["Codigo_flat"] = df["Codigo"].str.replace(r"[^A-Z0-9]", "", regex=True)
+    df["Descripcion"] = df["Descripcion"].astype(str).str.strip()
+    return df
+
+
 def style_income_statement_row(row: pd.Series, total_rows: set[int], detail_rows: set[int]) -> list[str]:
     if row.name in total_rows:
         return ["border-top: 2px solid #1f2937; font-weight: 700; background-color: #f5f7fb;"] * len(row)
@@ -257,6 +272,11 @@ try:
     company_directory_data = load_company_directory_data("directorio_core.pickle")
 except FileNotFoundError:
     company_directory_data = None
+ciiu_catalog_data = None
+try:
+    ciiu_catalog_data = load_ciiu_catalog("CIIU.xlsx")
+except (FileNotFoundError, ImportError, ValueError):
+    ciiu_catalog_data = None
 
 statement_structure = [
     {"column": "INGRESOS", "label": "INGRESOS", "sign": "", "is_total": False, "is_detail": False},
@@ -369,6 +389,23 @@ if selected_company:
 
                     target_col = left_col if idx % 2 == 0 else right_col
                     target_col.write(f"**{label}:** {display_value}")
+
+                ciiu_code = (
+                    str(profile_row["CIIU NIVEL 6"]).strip().upper()
+                    if "CIIU NIVEL 6" in company_profile_df.columns and pd.notna(profile_row["CIIU NIVEL 6"])
+                    else ""
+                )
+                ciiu_description = "-"
+                if ciiu_catalog_data is not None and ciiu_code:
+                    ciiu_match = ciiu_catalog_data[ciiu_catalog_data["Codigo"] == ciiu_code]
+                    if ciiu_match.empty:
+                        ciiu_code_flat = "".join(ch for ch in ciiu_code if ch.isalnum())
+                        ciiu_match = ciiu_catalog_data[ciiu_catalog_data["Codigo_flat"] == ciiu_code_flat]
+                    if not ciiu_match.empty:
+                        ciiu_description = str(ciiu_match.iloc[0]["Descripcion"])
+
+                st.write(f"**CIIU Nivel 6:** {ciiu_code if ciiu_code else '-'}")
+                st.write(f"**Actividad Económica:** {ciiu_description}")
 
     with tab_pyg:
         ingresos_2024 = annual_df.loc[2024, "INGRESOS"] if "INGRESOS" in annual_df.columns else pd.NA
