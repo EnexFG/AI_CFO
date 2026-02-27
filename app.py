@@ -229,21 +229,31 @@ def to_indicators_pdf_bytes(
     pdf.set_fill_color(248, 250, 255)
     card_h = 32
     pdf.rect(10, 10, page_width, card_h, "DF")
+    has_logo = False
+    logo_path = Path("Logo Andersen.png")
+    if logo_path.exists():
+        try:
+            pdf.image(str(logo_path), x=171, y=13, w=24)
+            has_logo = True
+        except Exception:
+            has_logo = False
+
+    info_w = 150 if has_logo else 0
     pdf.set_xy(14, 13)
     pdf.set_font("Helvetica", "B", 13)
     pdf.set_text_color(17, 24, 39)
-    pdf.cell(0, 6, pdf_text("Indicadores Financieros Clave"), ln=1)
+    pdf.cell(info_w, 6, pdf_text("Indicadores Financieros Clave"), ln=1)
     pdf.set_x(14)
     pdf.set_font("Helvetica", "", 10)
-    pdf.cell(0, 5, pdf_text(f"Empresa: {company_name}"), ln=1)
+    pdf.cell(info_w, 5, pdf_text(f"Empresa: {company_name}"), ln=1)
     pdf.set_x(14)
-    pdf.cell(0, 5, pdf_text(f"RUC: {ruc}"), ln=1)
+    pdf.cell(info_w, 5, pdf_text(f"RUC: {ruc}"), ln=1)
     pdf.set_x(14)
     if total_score is not None:
         score_line = f"Score total: {total_score:.1f}/100 | Estado: {status_label.capitalize()}"
     else:
         score_line = "Score total: N/D | Estado: Sin datos"
-    pdf.cell(0, 5, pdf_text(score_line), ln=1)
+    pdf.cell(info_w, 5, pdf_text(score_line), ln=1)
     # Ensure the executive summary starts below the blue header card.
     pdf.set_y(10 + card_h + 6)
 
