@@ -244,7 +244,8 @@ def to_indicators_pdf_bytes(
     else:
         score_line = "Score total: N/D | Estado: Sin datos"
     pdf.cell(0, 5, pdf_text(score_line), ln=1)
-    pdf.ln(6)
+    # Ensure the executive summary starts below the blue header card.
+    pdf.set_y(10 + card_h + 6)
 
     # Narrative
     pdf.set_font("Helvetica", "B", 11)
