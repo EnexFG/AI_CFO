@@ -197,115 +197,130 @@ def to_indicators_pdf_bytes(
     block_scores: dict[str, float | None],
     indicators_table_df: pd.DataFrame,
 ) -> bytes:
-    import textwrap
+    try:
+        from fpdf import FPDF
+    except Exception as exc:
+        raise RuntimeError("No hay motor PDF disponible (falta fpdf2).") from exc
 
-    def normalize_text(value) -> str:
+    def pdf_text(value) -> str:
         text = strip_simple_html(value if value is not None else "")
-        return str(text).replace("\n", " ").strip()
+        text = str(text).replace("\n", " ").strip()
+        return text.encode("latin-1", errors="replace").decode("latin-1")
 
-    def add_wrapped(lines: list[str], text: str, width: int = 108) -> None:
-        wrapped = textwrap.wrap(normalize_text(text), width=width) or [""]
-        lines.extend(wrapped)
+    class IndicatorsPDF(FPDF):
+        def footer(self) -> None:
+            self.set_y(-10)
+            self.set_font("Helvetica", "", 8)
+            self.set_text_color(107, 114, 128)
+            self.cell(0, 5, f"Página {self.page_no()}", align="R")
 
-    def pdf_escape_text(text: str) -> str:
-        return text.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
+    pdf = IndicatorsPDF(orientation="P", unit="mm", format="A4")
+    pdf.set_auto_page_break(auto=True, margin=12)
+    pdf.set_title(pdf_text(f"Indicadores Financieros Clave - {company_name}"))
+    pdf.set_author("Andersen Intelligence")
+    pdf.add_page()
 
-    def build_content_stream(page_lines: list[str]) -> bytes:
-        commands = ["BT", "/F1 9 Tf", "40 805 Td"]
-        for idx, raw_line in enumerate(page_lines):
-            safe_line = pdf_escape_text(raw_line)
-            if idx > 0:
-                commands.append("0 -14 Td")
-            commands.append(f"({safe_line}) Tj")
-        commands.append("ET")
-        return "\n".join(commands).encode("latin-1", errors="replace")
+    page_width = 190
+    table_col_widths = [94, 24, 24, 24, 24]
+    row_h = 7
 
-    lines: list[str] = []
-    add_wrapped(lines, "INDICADORES FINANCIEROS CLAVE", width=108)
-    add_wrapped(lines, f"Empresa: {company_name}", width=108)
-    add_wrapped(lines, f"RUC: {ruc}", width=108)
+    # Header card
+    pdf.set_draw_color(199, 210, 254)
+    pdf.set_fill_color(248, 250, 255)
+    card_h = 32
+    pdf.rect(10, 10, page_width, card_h, "DF")
+    pdf.set_xy(14, 13)
+    pdf.set_font("Helvetica", "B", 13)
+    pdf.set_text_color(17, 24, 39)
+    pdf.cell(0, 6, pdf_text("Indicadores Financieros Clave"), ln=1)
+    pdf.set_x(14)
+    pdf.set_font("Helvetica", "", 10)
+    pdf.cell(0, 5, pdf_text(f"Empresa: {company_name}"), ln=1)
+    pdf.set_x(14)
+    pdf.cell(0, 5, pdf_text(f"RUC: {ruc}"), ln=1)
+    pdf.set_x(14)
     if total_score is not None:
-        add_wrapped(lines, f"Score total: {total_score:.1f}/100 | Estado: {status_label.capitalize()}", width=108)
+        score_line = f"Score total: {total_score:.1f}/100 | Estado: {status_label.capitalize()}"
     else:
-        add_wrapped(lines, "Score total: N/D | Estado: Sin datos", width=108)
-    lines.append("")
-    add_wrapped(lines, "Resumen Ejecutivo", width=108)
-    for narrative in narrative_lines:
-        add_wrapped(lines, narrative, width=108)
-    lines.append("")
-    add_wrapped(lines, "Scores por Bloque", width=108)
+        score_line = "Score total: N/D | Estado: Sin datos"
+    pdf.cell(0, 5, pdf_text(score_line), ln=1)
+    pdf.ln(6)
+
+    # Narrative
+    pdf.set_font("Helvetica", "B", 11)
+    pdf.set_text_color(17, 24, 39)
+    pdf.cell(0, 6, pdf_text("Resumen Ejecutivo"), ln=1)
+    pdf.set_font("Helvetica", "", 9.8)
+    pdf.set_text_color(31, 41, 55)
+    for line in narrative_lines:
+        pdf.multi_cell(0, 5.2, pdf_text(line))
+        pdf.ln(0.5)
+
+    # Score table
+    pdf.ln(2)
+    pdf.set_font("Helvetica", "B", 10)
+    pdf.cell(0, 6, pdf_text("Scores por Bloque"), ln=1)
+    pdf.set_fill_color(31, 41, 55)
+    pdf.set_text_color(255, 255, 255)
+    pdf.set_font("Helvetica", "B", 9)
+    pdf.cell(55, row_h, "Bloque", border=1, fill=True)
+    pdf.cell(35, row_h, "Score", border=1, fill=True, align="R", ln=1)
+    pdf.set_font("Helvetica", "", 9)
+    pdf.set_text_color(31, 41, 55)
     for block in ["Rentabilidad", "Estructura", "Liquidez"]:
         value = block_scores.get(block)
         score_text = f"{value:.1f}/100" if value is not None else "N/D"
-        add_wrapped(lines, f"- {block}: {score_text}", width=108)
-    lines.append("")
-    add_wrapped(lines, "Tabla de Indicadores (2021-2024)", width=108)
-    header = f"{'Indicador':<46} | {'2021':>9} | {'2022':>9} | {'2023':>9} | {'2024':>9}"
-    lines.append(header)
-    lines.append("-" * len(header))
+        pdf.cell(55, row_h, pdf_text(block), border=1)
+        pdf.cell(35, row_h, pdf_text(score_text), border=1, align="R", ln=1)
+
+    # Indicators table
+    pdf.ln(4)
+    pdf.set_font("Helvetica", "B", 10)
+    pdf.cell(0, 6, pdf_text("Tabla de Indicadores (2021-2024)"), ln=1)
+
+    def write_table_header() -> None:
+        pdf.set_fill_color(31, 41, 55)
+        pdf.set_text_color(255, 255, 255)
+        pdf.set_font("Helvetica", "B", 8.6)
+        headers = ["Indicador", "2021", "2022", "2023", "2024"]
+        for idx, header in enumerate(headers):
+            align = "L" if idx == 0 else "R"
+            end_ln = 1 if idx == len(headers) - 1 else 0
+            pdf.cell(table_col_widths[idx], row_h, pdf_text(header), border=1, fill=True, align=align, ln=end_ln)
+        pdf.set_text_color(31, 41, 55)
+        pdf.set_font("Helvetica", "", 8.4)
+
+    write_table_header()
+
     for _, row in indicators_table_df.iterrows():
-        indicator = normalize_text(row.get("Indicador", "-"))
-        y2021 = normalize_text(row.get("2021", "-"))
-        y2022 = normalize_text(row.get("2022", "-"))
-        y2023 = normalize_text(row.get("2023", "-"))
-        y2024 = normalize_text(row.get("2024", "-"))
+        indicator = pdf_text(row.get("Indicador", "-"))
+        y2021 = pdf_text(row.get("2021", "-"))
+        y2022 = pdf_text(row.get("2022", "-"))
+        y2023 = pdf_text(row.get("2023", "-"))
+        y2024 = pdf_text(row.get("2024", "-"))
+
+        if pdf.get_y() > 272:
+            pdf.add_page()
+            write_table_header()
+
         if indicator.upper().startswith("INDICADORES DE "):
-            lines.append(f"[{indicator}]")
-        else:
-            lines.append(f"{indicator[:46]:<46} | {y2021[:9]:>9} | {y2022[:9]:>9} | {y2023[:9]:>9} | {y2024[:9]:>9}")
+            pdf.set_fill_color(238, 242, 255)
+            pdf.set_font("Helvetica", "B", 8.6)
+            pdf.cell(sum(table_col_widths), row_h, indicator, border=1, fill=True, ln=1)
+            pdf.set_font("Helvetica", "", 8.4)
+            continue
 
-    if not lines:
-        lines = ["Informe sin datos."]
+        indicator_short = indicator[:60]
+        pdf.cell(table_col_widths[0], row_h, indicator_short, border=1, align="L")
+        pdf.cell(table_col_widths[1], row_h, y2021[:16], border=1, align="R")
+        pdf.cell(table_col_widths[2], row_h, y2022[:16], border=1, align="R")
+        pdf.cell(table_col_widths[3], row_h, y2023[:16], border=1, align="R")
+        pdf.cell(table_col_widths[4], row_h, y2024[:16], border=1, align="R", ln=1)
 
-    max_lines_per_page = 48
-    page_chunks = [lines[i : i + max_lines_per_page] for i in range(0, len(lines), max_lines_per_page)]
-    if not page_chunks:
-        page_chunks = [["Informe sin datos."]]
-
-    objects: dict[int, bytes] = {}
-    objects[1] = b"<< /Type /Catalog /Pages 2 0 R >>"
-    objects[3] = b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"
-
-    page_obj_numbers = []
-    for page_idx, page_lines in enumerate(page_chunks):
-        page_obj_num = 4 + page_idx * 2
-        content_obj_num = 5 + page_idx * 2
-        page_obj_numbers.append(page_obj_num)
-
-        content_stream = build_content_stream(page_lines)
-        objects[content_obj_num] = (
-            f"<< /Length {len(content_stream)} >>\nstream\n".encode("latin-1")
-            + content_stream
-            + b"\nendstream"
-        )
-        objects[page_obj_num] = (
-            f"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] "
-            f"/Resources << /Font << /F1 3 0 R >> >> /Contents {content_obj_num} 0 R >>"
-        ).encode("latin-1")
-
-    kids = " ".join(f"{num} 0 R" for num in page_obj_numbers)
-    objects[2] = f"<< /Type /Pages /Kids [{kids}] /Count {len(page_obj_numbers)} >>".encode("latin-1")
-
-    pdf = b"%PDF-1.4\n%\xe2\xe3\xcf\xd3\n"
-    offsets: dict[int, int] = {}
-    for obj_num in sorted(objects.keys()):
-        offsets[obj_num] = len(pdf)
-        pdf += f"{obj_num} 0 obj\n".encode("latin-1")
-        pdf += objects[obj_num]
-        pdf += b"\nendobj\n"
-
-    xref_pos = len(pdf)
-    max_obj_num = max(objects.keys())
-    pdf += f"xref\n0 {max_obj_num + 1}\n".encode("latin-1")
-    pdf += b"0000000000 65535 f \n"
-    for idx in range(1, max_obj_num + 1):
-        offset = offsets.get(idx, 0)
-        flag = "n" if idx in offsets else "f"
-        gen = "00000" if flag == "n" else "65535"
-        pdf += f"{offset:010d} {gen} {flag} \n".encode("latin-1")
-
-    pdf += f"trailer\n<< /Size {max_obj_num + 1} /Root 1 0 R >>\nstartxref\n{xref_pos}\n%%EOF".encode("latin-1")
-    return pdf
+    output = pdf.output(dest="S")
+    if isinstance(output, str):
+        return output.encode("latin-1", errors="replace")
+    return bytes(output)
 
 
 def safe_read_pickle(path: str) -> pd.DataFrame:
