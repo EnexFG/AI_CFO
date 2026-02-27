@@ -184,6 +184,144 @@ def safe_filename(text: str) -> str:
     return "".join(c if c.isalnum() or c in ("-", "_") else "_" for c in str(text)).strip("_")
 
 
+def strip_simple_html(text: str) -> str:
+    return str(text).replace("<strong>", "").replace("</strong>", "")
+
+
+def to_indicators_pdf_bytes(
+    company_name: str,
+    ruc: str,
+    total_score: float | None,
+    status_label: str,
+    narrative_lines: list[str],
+    block_scores: dict[str, float | None],
+    indicators_table_df: pd.DataFrame,
+) -> bytes:
+    try:
+        from reportlab.lib import colors
+        from reportlab.lib.pagesizes import A4
+        from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+        from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+    except Exception as exc:
+        raise RuntimeError("No hay motor PDF disponible (falta reportlab).") from exc
+
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=A4,
+        leftMargin=30,
+        rightMargin=30,
+        topMargin=30,
+        bottomMargin=30,
+    )
+    styles = getSampleStyleSheet()
+    body_style = ParagraphStyle(
+        "BodySmall",
+        parent=styles["Normal"],
+        fontName="Helvetica",
+        fontSize=9.5,
+        leading=13,
+        textColor=colors.HexColor("#1f2937"),
+    )
+    heading_style = ParagraphStyle(
+        "SectionHeading",
+        parent=styles["Heading3"],
+        fontName="Helvetica-Bold",
+        fontSize=11.5,
+        textColor=colors.HexColor("#111827"),
+        spaceAfter=6,
+    )
+
+    story = [
+        Paragraph("Indicadores Financieros Clave", styles["Title"]),
+        Spacer(1, 8),
+        Paragraph(f"<b>Empresa:</b> {company_name}", body_style),
+        Paragraph(f"<b>RUC:</b> {ruc}", body_style),
+        Spacer(1, 8),
+        Paragraph("Resumen Ejecutivo Automático", heading_style),
+    ]
+
+    if total_score is not None:
+        story.append(
+            Paragraph(
+                f"<b>Score total:</b> {total_score:.1f}/100 | <b>Estado:</b> {status_label.capitalize()}",
+                body_style,
+            )
+        )
+    else:
+        story.append(Paragraph("<b>Score total:</b> N/D | <b>Estado:</b> Sin datos", body_style))
+
+    for line in narrative_lines:
+        story.append(Paragraph(strip_simple_html(line), body_style))
+
+    score_table_data = [["Bloque", "Score"]]
+    for block in ["Rentabilidad", "Estructura", "Liquidez"]:
+        value = block_scores.get(block)
+        score_text = f"{value:.1f}/100" if value is not None else "N/D"
+        score_table_data.append([block, score_text])
+
+    score_table = Table(score_table_data, colWidths=[130, 90])
+    score_table.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1f2937")),
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("ALIGN", (1, 1), (1, -1), "RIGHT"),
+                ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#d1d5db")),
+                ("FONTNAME", (0, 1), (-1, -1), "Helvetica"),
+                ("FONTSIZE", (0, 0), (-1, -1), 9),
+                ("TOPPADDING", (0, 0), (-1, -1), 4),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+            ]
+        )
+    )
+    story.extend([Spacer(1, 8), score_table, Spacer(1, 10), Paragraph("Tabla de Indicadores", heading_style)])
+
+    table_header = ["Indicador", "2021", "2022", "2023", "2024"]
+    table_data = [table_header]
+    group_row_indexes = []
+    for _, row in indicators_table_df.iterrows():
+        indicator = str(row.get("Indicador", "-"))
+        r = [
+            indicator,
+            str(row.get("2021", "-")),
+            str(row.get("2022", "-")),
+            str(row.get("2023", "-")),
+            str(row.get("2024", "-")),
+        ]
+        table_data.append(r)
+        if indicator.upper().startswith("INDICADORES DE "):
+            group_row_indexes.append(len(table_data) - 1)
+
+    indicator_table = Table(table_data, colWidths=[220, 70, 70, 70, 70], repeatRows=1)
+    table_style = [
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1f2937")),
+        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("ALIGN", (1, 1), (-1, -1), "RIGHT"),
+        ("ALIGN", (0, 0), (0, -1), "LEFT"),
+        ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#d1d5db")),
+        ("FONTNAME", (0, 1), (-1, -1), "Helvetica"),
+        ("FONTSIZE", (0, 0), (-1, -1), 8.8),
+        ("TOPPADDING", (0, 0), (-1, -1), 4),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+    ]
+    for idx in group_row_indexes:
+        table_style.extend(
+            [
+                ("BACKGROUND", (0, idx), (-1, idx), colors.HexColor("#eef2ff")),
+                ("FONTNAME", (0, idx), (-1, idx), "Helvetica-Bold"),
+            ]
+        )
+    indicator_table.setStyle(TableStyle(table_style))
+    story.append(indicator_table)
+
+    doc.build(story)
+    buffer.seek(0)
+    return buffer.getvalue()
+
+
 def score_high_is_better(value, good_threshold: float, neutral_threshold: float) -> float | None:
     if pd.isna(value):
         return None
@@ -930,6 +1068,10 @@ if selected_company:
                 }
                 block_weights = {"Rentabilidad": 0.40, "Estructura": 0.30, "Liquidez": 0.30}
                 valid_blocks = {k: v for k, v in block_scores.items() if v is not None}
+                pdf_total_score = None
+                pdf_status_label = "sin datos"
+                pdf_narratives = ["No hay datos suficientes para construir el resumen automático de indicadores."]
+                pdf_block_scores = block_scores.copy()
 
                 if valid_blocks:
                     valid_weight_sum = sum(block_weights[k] for k in valid_blocks)
@@ -980,6 +1122,9 @@ if selected_company:
                         f"<strong>{worst_block_trend_text}</strong>."
                     )
                     narrative_3 = priority_map[worst_block].replace("Prioridad: ", "En el corto plazo, se recomienda ")
+                    pdf_total_score = total_score
+                    pdf_status_label = score_label(total_score)
+                    pdf_narratives = [narrative_1, narrative_2, narrative_3]
 
                     if total_score >= 75:
                         status_bg, status_border, status_text = "#dcfce7", "#86efac", "#14532d"
@@ -1148,6 +1293,26 @@ if selected_company:
                     .set_properties(subset=["2021", "2022", "2023", "2024"], **{"text-align": "right"})
                 )
                 st.dataframe(styled_indicators, width="stretch", hide_index=True)
+                try:
+                    indicators_pdf_bytes = to_indicators_pdf_bytes(
+                        company_name=selected_company,
+                        ruc=str(ruc),
+                        total_score=pdf_total_score,
+                        status_label=pdf_status_label,
+                        narrative_lines=pdf_narratives,
+                        block_scores=pdf_block_scores,
+                        indicators_table_df=indicators_view_df,
+                    )
+                    indicators_pdf_file = f"indicadores_financieros_clave_{safe_filename(selected_company)}.pdf"
+                    st.download_button(
+                        "Descargar PDF - Indicadores Financieros Clave",
+                        data=indicators_pdf_bytes,
+                        file_name=indicators_pdf_file,
+                        mime="application/pdf",
+                        key=f"download_pdf_ind_{safe_filename(selected_company)}",
+                    )
+                except RuntimeError:
+                    st.error("No se pudo generar PDF de Indicadores (falta reportlab).")
 
                 if missing_indicators:
                     st.warning(f"Indicadores no encontrados en el dataset: {', '.join(missing_indicators)}")
