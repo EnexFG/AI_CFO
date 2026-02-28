@@ -1577,7 +1577,7 @@ if selected_company:
                     indicators_pdf_file = f"indicadores_financieros_clave_{safe_filename(selected_company)}.pdf"
                     with pdf_download_slot.container():
                         st.download_button(
-                            "Descargar PDF - Indicadores Financieros Clave",
+                            "Descargar Resumen y Gráficos PDF",
                             data=indicators_pdf_bytes,
                             file_name=indicators_pdf_file,
                             mime="application/pdf",
