@@ -1,5 +1,6 @@
 import base64
 import io
+import tempfile
 from pathlib import Path
 
 import altair as alt
@@ -196,6 +197,7 @@ def to_indicators_pdf_bytes(
     narrative_lines: list[str],
     block_scores: dict[str, float | None],
     indicators_table_df: pd.DataFrame,
+    graph_images: list[tuple[str, bytes]] | None = None,
 ) -> bytes:
     try:
         from fpdf import FPDF
@@ -328,10 +330,213 @@ def to_indicators_pdf_bytes(
         pdf.cell(table_col_widths[3], row_h, y2023[:16], border=1, align="R")
         pdf.cell(table_col_widths[4], row_h, y2024[:16], border=1, align="R", ln=1)
 
+    if graph_images:
+        pdf.add_page()
+        pdf.set_font("Helvetica", "B", 11)
+        pdf.set_text_color(17, 24, 39)
+        pdf.cell(0, 7, pdf_text("Gráficos Seleccionados"), ln=1)
+        pdf.set_text_color(31, 41, 55)
+
+        for idx, (graph_title, graph_bytes) in enumerate(graph_images, start=1):
+            if pdf.get_y() > 205:
+                pdf.add_page()
+                pdf.set_font("Helvetica", "B", 11)
+                pdf.cell(0, 7, pdf_text("Gráficos Seleccionados (continuación)"), ln=1)
+
+            pdf.set_font("Helvetica", "B", 9.5)
+            pdf.multi_cell(0, 5.5, pdf_text(f"Gráfico {idx}: {graph_title}"))
+            y_img = pdf.get_y() + 1
+            if y_img + 82 > 286:
+                pdf.add_page()
+                y_img = pdf.get_y()
+
+            tmp_img_path = None
+            try:
+                with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp_file:
+                    tmp_file.write(graph_bytes)
+                    tmp_img_path = tmp_file.name
+                pdf.image(tmp_img_path, x=15, y=y_img, w=180, h=80)
+            finally:
+                if tmp_img_path:
+                    Path(tmp_img_path).unlink(missing_ok=True)
+
+            pdf.set_y(y_img + 84)
+
     output = pdf.output(dest="S")
     if isinstance(output, str):
         return output.encode("latin-1", errors="replace")
     return bytes(output)
+
+
+def build_graph_images_for_pdf(
+    annual_df: pd.DataFrame,
+    ruc: str,
+    selected_company: str,
+    balance_data: pd.DataFrame,
+    indicators_data: pd.DataFrame | None,
+) -> list[tuple[str, bytes]]:
+    try:
+        import matplotlib.pyplot as plt
+    except Exception as exc:
+        raise RuntimeError("No hay motor de gráficos para PDF (falta matplotlib).") from exc
+
+    images: list[tuple[str, bytes]] = []
+
+    def fig_to_png_bytes(fig) -> bytes:
+        buf = io.BytesIO()
+        fig.savefig(buf, format="png", dpi=155, bbox_inches="tight")
+        buf.seek(0)
+        data = buf.getvalue()
+        buf.close()
+        plt.close(fig)
+        return data
+
+    # Gráfico 1: INGRESOS, COSTO DE VENTAS, UTILIDAD BRUTA
+    utilidad_bruta_series = None
+    if "UTILIDAD BRUTA" in annual_df.columns:
+        utilidad_bruta_series = annual_df["UTILIDAD BRUTA"]
+    elif "CONTRIBUCIÓN MARGINAL" in annual_df.columns:
+        utilidad_bruta_series = annual_df["CONTRIBUCIÓN MARGINAL"]
+    elif "INGRESOS" in annual_df.columns and "COSTO DE VENTAS" in annual_df.columns:
+        utilidad_bruta_series = annual_df["INGRESOS"] - annual_df["COSTO DE VENTAS"]
+
+    graph_1_df = pd.DataFrame(
+        {
+            "INGRESOS": annual_df["INGRESOS"] if "INGRESOS" in annual_df.columns else pd.NA,
+            "COSTO DE VENTAS": annual_df["COSTO DE VENTAS"] if "COSTO DE VENTAS" in annual_df.columns else pd.NA,
+            "UTILIDAD BRUTA": utilidad_bruta_series if utilidad_bruta_series is not None else pd.NA,
+        },
+        index=annual_df.index,
+    ).dropna(how="all")
+    if not graph_1_df.empty:
+        graph_1_order = ["INGRESOS", "COSTO DE VENTAS", "UTILIDAD BRUTA"]
+        x = list(range(len(graph_1_df.index)))
+        width = 0.24
+        fig, ax = plt.subplots(figsize=(10, 4.4))
+        colors = {"INGRESOS": "#2563eb", "COSTO DE VENTAS": "#f97316", "UTILIDAD BRUTA": "#16a34a"}
+        for offset, col in zip([-width, 0.0, width], graph_1_order):
+            y_vals = pd.to_numeric(graph_1_df[col], errors="coerce").fillna(0).tolist()
+            ax.bar([i + offset for i in x], y_vals, width=width, label=col, color=colors[col], alpha=0.92)
+        ax.set_xticks(x)
+        ax.set_xticklabels([str(int(y)) if pd.notna(y) else str(y) for y in graph_1_df.index])
+        ax.set_xlabel("Año")
+        ax.set_ylabel("Valor")
+        ax.set_title("Evolución de Ingresos, Costo de Ventas y Utilidad Bruta")
+        ax.legend(loc="upper left", fontsize=8)
+        ax.grid(axis="y", alpha=0.25)
+        fig.tight_layout()
+        images.append(("Evolución de Ingresos, Costo de Ventas y Utilidad Bruta", fig_to_png_bytes(fig)))
+
+    # Gráfico 2: Balance (PASIVO+PATRIMONIO con silueta ACTIVO)
+    balance_company_df = balance_data[balance_data["RUC"] == str(ruc)].copy()
+    if balance_company_df.empty:
+        balance_company_df = balance_data[balance_data["NOMBRE"] == selected_company].copy()
+    required_cols = ["ACTIVO", "PASIVO", "PATRIMONIO"]
+    if not balance_company_df.empty and all(col in balance_company_df.columns for col in required_cols):
+        annual_balance = (
+            balance_company_df.groupby("AÑO", dropna=False)[required_cols]
+            .sum(numeric_only=True)
+            .sort_index()
+            .dropna(how="all")
+        )
+        if not annual_balance.empty:
+            years = [str(int(y)) if pd.notna(y) else str(y) for y in annual_balance.index]
+            x = list(range(len(years)))
+            pasivo = pd.to_numeric(annual_balance["PASIVO"], errors="coerce").fillna(0).tolist()
+            patrimonio = pd.to_numeric(annual_balance["PATRIMONIO"], errors="coerce").fillna(0).tolist()
+            activo = pd.to_numeric(annual_balance["ACTIVO"], errors="coerce").fillna(0).tolist()
+
+            fig, ax = plt.subplots(figsize=(10, 4.4))
+            ax.bar(x, pasivo, label="PASIVO", color="#60a5fa")
+            ax.bar(x, patrimonio, bottom=pasivo, label="PATRIMONIO", color="#34d399")
+            ax.bar(x, activo, fill=False, edgecolor="#111827", linewidth=2, label="ACTIVO")
+            ax.set_xticks(x)
+            ax.set_xticklabels(years)
+            ax.set_xlabel("Año")
+            ax.set_ylabel("Valor")
+            ax.set_title("Evolución del Balance")
+            ax.legend(loc="upper left", fontsize=8)
+            ax.grid(axis="y", alpha=0.25)
+            fig.tight_layout()
+            images.append(("Evolución del Balance", fig_to_png_bytes(fig)))
+
+    if indicators_data is None:
+        return images
+
+    indicators_company_df = pd.DataFrame()
+    if "RUC" in indicators_data.columns:
+        indicators_company_df = indicators_data[indicators_data["RUC"] == str(ruc)].copy()
+    if indicators_company_df.empty and "NOMBRE" in indicators_data.columns:
+        indicators_company_df = indicators_data[indicators_data["NOMBRE"] == selected_company].copy()
+    if indicators_company_df.empty or "AÑO" not in indicators_company_df.columns:
+        return images
+
+    # Gráfico 3: ROE y ROA
+    graph_3_columns = [col for col in ["ROE", "ROA"] if col in indicators_company_df.columns]
+    if graph_3_columns:
+        annual_graph_3 = (
+            indicators_company_df.groupby("AÑO", dropna=False)[graph_3_columns]
+            .mean(numeric_only=True)
+            .sort_index()
+            .dropna(how="all")
+        )
+        if not annual_graph_3.empty:
+            years = [str(int(y)) if pd.notna(y) else str(y) for y in annual_graph_3.index]
+            x = list(range(len(years)))
+            fig, ax = plt.subplots(figsize=(10, 4.4))
+            colors = {"ROE": "#1d4ed8", "ROA": "#f59e0b"}
+            for col in graph_3_columns:
+                y_vals = (pd.to_numeric(annual_graph_3[col], errors="coerce").fillna(0) * 100).tolist()
+                ax.plot(x, y_vals, marker="o", linewidth=2, label=col, color=colors.get(col))
+            ax.set_xticks(x)
+            ax.set_xticklabels(years)
+            ax.set_xlabel("Año")
+            ax.set_ylabel("%")
+            ax.set_title("Evolución de ROE y ROA")
+            ax.legend(loc="upper left", fontsize=8)
+            ax.grid(axis="y", alpha=0.25)
+            fig.tight_layout()
+            images.append(("Evolución de ROE y ROA", fig_to_png_bytes(fig)))
+
+    # Gráfico 4: días y ciclo
+    graph_4_columns = [
+        "DÍAS DE INVENTARIO",
+        "DÍAS DE COBRO",
+        "DÍAS DE PAGO",
+        "CICLO DE CONVERSIÓN DE EFECTIVO",
+    ]
+    available_graph_4_cols = [col for col in graph_4_columns if col in indicators_company_df.columns]
+    if available_graph_4_cols:
+        annual_graph_4 = (
+            indicators_company_df.groupby("AÑO", dropna=False)[available_graph_4_cols]
+            .mean(numeric_only=True)
+            .sort_index()
+            .dropna(how="all")
+        )
+        if not annual_graph_4.empty:
+            years = [str(int(y)) if pd.notna(y) else str(y) for y in annual_graph_4.index]
+            x = list(range(len(years)))
+            fig, ax = plt.subplots(figsize=(10, 4.4))
+            color_map = {
+                "DÍAS DE INVENTARIO": "#0284c7",
+                "DÍAS DE COBRO": "#7c3aed",
+                "DÍAS DE PAGO": "#ea580c",
+                "CICLO DE CONVERSIÓN DE EFECTIVO": "#16a34a",
+            }
+            for col in available_graph_4_cols:
+                y_vals = pd.to_numeric(annual_graph_4[col], errors="coerce").fillna(0).tolist()
+                ax.plot(x, y_vals, marker="o", linewidth=2, label=col, color=color_map.get(col))
+            ax.set_xticks(x)
+            ax.set_xticklabels(years)
+            ax.set_xlabel("Año")
+            ax.set_ylabel("Días")
+            ax.set_title("Evolución de Indicadores de Gestión de Capital de Trabajo")
+            ax.legend(loc="upper left", fontsize=8)
+            ax.grid(axis="y", alpha=0.25)
+            fig.tight_layout()
+            images.append(("Evolución de Indicadores de Gestión de Capital de Trabajo", fig_to_png_bytes(fig)))
+
+    return images
 
 
 def safe_read_pickle(path: str) -> pd.DataFrame:
@@ -539,6 +744,7 @@ if selected_company:
     ruc = company_df["RUC"].dropna().astype(str).iloc[0] if not company_df["RUC"].dropna().empty else "-"
     st.subheader(selected_company)
     st.write(f"**RUC:** {ruc}")
+    pdf_download_slot = st.empty()
     tab_profile, tab_pyg, tab_bg, tab_ind, tab_graph = st.tabs(
         [
             "Perfil de la Compañía",
@@ -1351,6 +1557,13 @@ if selected_company:
                 )
                 st.dataframe(styled_indicators, width="stretch", hide_index=True)
                 try:
+                    graph_images_for_pdf = build_graph_images_for_pdf(
+                        annual_df=annual_df,
+                        ruc=str(ruc),
+                        selected_company=selected_company,
+                        balance_data=balance_data,
+                        indicators_data=indicators_data,
+                    )
                     indicators_pdf_bytes = to_indicators_pdf_bytes(
                         company_name=selected_company,
                         ruc=str(ruc),
@@ -1359,17 +1572,20 @@ if selected_company:
                         narrative_lines=pdf_narratives,
                         block_scores=pdf_block_scores,
                         indicators_table_df=indicators_view_df,
+                        graph_images=graph_images_for_pdf,
                     )
                     indicators_pdf_file = f"indicadores_financieros_clave_{safe_filename(selected_company)}.pdf"
-                    st.download_button(
-                        "Descargar PDF - Indicadores Financieros Clave",
-                        data=indicators_pdf_bytes,
-                        file_name=indicators_pdf_file,
-                        mime="application/pdf",
-                        key=f"download_pdf_ind_{safe_filename(selected_company)}",
-                    )
+                    with pdf_download_slot.container():
+                        st.download_button(
+                            "Descargar PDF - Indicadores Financieros Clave",
+                            data=indicators_pdf_bytes,
+                            file_name=indicators_pdf_file,
+                            mime="application/pdf",
+                            key=f"download_pdf_ind_{safe_filename(selected_company)}",
+                        )
                 except Exception:
-                    st.error("No se pudo generar el PDF de Indicadores.")
+                    with pdf_download_slot.container():
+                        st.error("No se pudo generar el PDF de Indicadores.")
 
                 if missing_indicators:
                     st.warning(f"Indicadores no encontrados en el dataset: {', '.join(missing_indicators)}")
